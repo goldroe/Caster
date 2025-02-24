@@ -1,6 +1,13 @@
 #ifndef CASTER_H
 #define CASTER_H
 
+struct Texture {
+    int width;
+    int height;
+    u8 *bitmap;
+    R_Handle tex;
+};
+
 struct Back_Buffer {
     u8 *pixels;
     int width;
@@ -15,6 +22,8 @@ struct Game_State {
 
     f64 plane_x;
     f64 plane_y;
+
+    Auto_Array<Texture> textures;
 };
 
 #endif // CASTER_H

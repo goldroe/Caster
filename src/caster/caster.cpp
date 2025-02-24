@@ -2,6 +2,9 @@
 global Back_Buffer g_back_buffer;
 global Game_State *game_state;
 
+#define TEX_WIDTH 64
+#define TEX_HEIGHT 64
+
 #define MAP_HEIGHT 32
 #define MAP_WIDTH 32
 global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
@@ -81,6 +84,12 @@ internal void fill_vertical_line(Back_Buffer *buffer, int x, int y0, int y1, u32
     }
 }
 
+
+
+internal void fill_pixel(Back_Buffer *buffer, int x, int y, u32 color) {
+    ((u32 *)buffer->pixels)[y * buffer->width + x] = color;
+}
+
 internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, f32 dt) {
     local_persist bool first_call = true;
     if (first_call) {
@@ -91,6 +100,29 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         game_state->dir = v2_f32(-1.0f, 0.0f);
         game_state->plane_x = 0;
         game_state->plane_y = 0.66;
+
+
+        int bpp = 4;
+        int atlas_w, atlas_h, n;
+        u8 *atlas_bitmap = stbi_load("data/wolftextures.png", &atlas_w, &atlas_h, &n, 4);
+        for (int i = 0; i < 8; i++) {
+            Texture texture = {};
+            texture.width = 64;
+            texture.height = 64;
+            texture.bitmap = (u8 *)malloc(texture.width * texture.height * bpp);
+
+            int x = texture.width * i;
+            for (int y = 0; y < texture.height; y++) {
+                u8 *dst = texture.bitmap + y * texture.width * bpp;
+                u8 *src = atlas_bitmap + y * atlas_w * bpp + x * bpp;
+                MemoryCopy(dst, src, texture.width * bpp);
+            }
+
+            texture.tex = d3d11_create_texture(R_Tex2DFormat_R8G8B8A8, {texture.width, texture.height}, texture.bitmap);
+            game_state->textures.push(texture);
+        }
+
+        stbi_image_free(atlas_bitmap);
     }
 
     V2_F32 window_dimension = os_get_window_dim(window_handle);
@@ -158,8 +190,6 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         }
     }
    
-
-
     clear_buffer(&g_back_buffer, 0, 0, 0, 1);
 
     f64 w = (f64)window_dimension.x;
@@ -233,31 +263,40 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         if (y0 < 0) y0 = 0;
         if (y1 >= h) y1 = (int)h - 1;
 
-        RGBA color = {};
+
         int wall = world_map[map_y][map_x];
-        switch (wall) {
-        case 1:
-            color.v = 0xff0000ff;
-            break;
-        case 2:
-            color.v = 0xff00ff00;
-            break;
-        case 3:
-            color.v = 0xffff0000;
-            break;
-        case 4:
-            color.v = 0xffffffff;
-            break;
-        }
+        int tex_idx = wall - 1;
 
-        //@Note Darken side
-        if (side == 1) {
-            color.r /= 2;
-            color.g /= 2;
-            color.b /= 2;
-        }
+        Texture *texture = &game_state->textures[tex_idx];
 
-        fill_vertical_line(&g_back_buffer, x, y0, y1, color.v);
+        f64 wall_x;
+        if (side == 0) wall_x = pos_y + perp_wall_dist * raydir_y;
+        else wall_x = pos_x + perp_wall_dist * raydir_x;
+        wall_x -= floor(wall_x);
+
+        int tex_x = (int)(wall_x * TEX_WIDTH);
+        if (side == 0 && raydir_x > 0) tex_x = TEX_WIDTH - tex_x - 1;
+        if (side == 1 && raydir_y < 0) tex_x = TEX_WIDTH - tex_x - 1;
+
+        f64 step = 1.0 * TEX_HEIGHT / line_height;
+        f64 tex_pos = (y0 - h / 2 + line_height / 2) * step;
+
+        for (int y = y0; y < y1; y++) {
+            int tex_y = (int)tex_pos & (TEX_HEIGHT - 1);
+            tex_pos += step;
+
+            RGBA color;
+            color.v = ((u32 *)texture->bitmap)[tex_y * TEX_WIDTH + tex_x];
+
+            // //@Note Darken side
+            if (side == 1) {
+                color.r /= 2;
+                color.g /= 2;
+                color.b /= 2;
+            }
+
+            fill_pixel(&g_back_buffer, x, y, color.v);
+        }
     }
 
 
@@ -268,6 +307,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     M4_F32 ortho = ortho_rh_zo(0.0f, window_dimension.x, 0.0f, window_dimension.y, -1.0f, 1.0f);
     draw_set_xform(ortho);
     draw_quad(g_back_buffer.tex, make_rect(0.0f, 0.0f, window_dimension.x, window_dimension.y), make_rect(0, 0, 1, 1));
+    // draw_quad(game_state->textures[3].tex, make_rect(0.0f, 0.0f, window_dimension.x, window_dimension.y), make_rect(0, 0, 1, 1));
     d3d11_render(window_handle, draw_bucket);
 
 
