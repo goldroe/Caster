@@ -1,6 +1,14 @@
 #ifndef CASTER_H
 #define CASTER_H
 
+struct Back_Buffer {
+    u8 *pixels;
+    int width;
+    int height;
+    int bytes_per_pixel;
+    R_Handle tex;
+};
+
 struct Texture {
     int width;
     int height;
@@ -8,12 +16,10 @@ struct Texture {
     R_Handle tex;
 };
 
-struct Back_Buffer {
-    u8 *pixels;
-    int width;
-    int height;
-    int bytes_per_pixel;
-    R_Handle tex;
+struct Sprite {
+    f64 x;
+    f64 y;
+    int tex;
 };
 
 struct Game_State {

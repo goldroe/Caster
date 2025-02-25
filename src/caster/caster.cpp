@@ -2,8 +2,13 @@
 global Back_Buffer g_back_buffer;
 global Game_State *game_state;
 
+#define SCREEN_WIDTH   640
+#define SCREEN_HEIGHT  480
+
 #define TEX_WIDTH 64
 #define TEX_HEIGHT 64
+
+global f64 z_buffer[SCREEN_WIDTH];
 
 #define MAP_HEIGHT 24
 #define MAP_WIDTH 24
@@ -18,9 +23,9 @@ global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
   {7,7,7,7,0,7,7,7,7,0,8,0,8,0,8,0,8,4,0,4,0,6,0,6},
   {7,7,0,0,0,0,0,0,7,8,0,8,0,8,0,8,8,6,0,0,0,0,0,6},
   {7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,6,0,0,0,0,0,4},
-  {7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,6,0,6,0,6,0,6},
-  {7,7,0,0,0,0,0,0,7,8,0,8,0,8,0,8,8,6,4,6,0,6,6,6},
-  {7,7,7,7,0,7,7,7,7,8,8,4,0,6,8,4,8,3,3,3,0,3,3,3},
+  {7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,6,0,0,0,6,0,6},
+  {7,7,0,0,0,0,0,0,7,8,0,8,0,8,0,8,8,6,0,0,0,6,6,6},
+  {7,7,7,7,0,7,7,7,7,8,8,4,0,6,8,4,8,3,0,0,0,3,3,3},
   {2,2,2,2,0,2,2,2,2,4,6,4,0,0,6,0,6,3,0,0,0,0,0,3},
   {2,2,0,0,0,0,0,2,2,4,0,0,0,0,0,0,4,3,0,0,0,0,0,3},
   {2,0,0,0,0,0,0,0,2,4,0,0,0,0,0,0,4,3,0,0,0,0,0,3},
@@ -32,6 +37,35 @@ global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
   {2,0,0,0,0,0,0,0,2,0,0,0,0,0,2,5,0,5,0,5,0,5,0,5},
   {2,2,0,0,0,0,0,2,2,2,0,0,0,2,2,0,5,0,5,0,0,0,5,5},
   {2,2,2,2,1,2,2,2,2,2,2,1,2,2,2,5,5,5,5,5,5,5,5,5}
+};
+
+#define NUM_SPRITES 19
+Sprite sprites[NUM_SPRITES] =
+{
+  {20.5, 11.5, 10}, //green light in front of playerstart
+  //green lights in every room
+  {18.5,4.5, 10},
+  {10.0,4.5, 10},
+  {10.0,12.5,10},
+  {3.5, 6.5, 10},
+  {3.5, 20.5,10},
+  {3.5, 14.5,10},
+  {14.5,20.5,10},
+
+  //row of pillars in front of wall: fisheye test
+  {18.5, 10.5, 9},
+  {18.5, 11.5, 9},
+  {18.5, 12.5, 9},
+
+  //some barrels around the map
+  {21.5, 1.5,  8},
+  {15.5, 1.5,  8},
+  {16.0, 1.8,  8},
+  {16.2, 1.2,  8},
+  {3.5,  2.5,  8},
+  {9.5,  15.5, 8},
+  {10.0, 15.1, 8},
+  {10.5, 15.8, 8},
 };
 
 internal void update_screen_buffer(Back_Buffer *buffer, int width, int height) {
@@ -76,8 +110,16 @@ internal void fill_vertical_line(Back_Buffer *buffer, int x, int y0, int y1, u32
     }
 }
 
-internal void fill_pixel(Back_Buffer *buffer, int x, int y, u32 color) {
+internal inline void fill_pixel(Back_Buffer *buffer, int x, int y, u32 color) {
     ((u32 *)buffer->pixels)[y * buffer->width + x] = color;
+}
+
+internal void load_texture(const char *file_name) {
+    Texture texture = {};
+    int n;
+    texture.bitmap = (u8 *)stbi_load(file_name, &texture.width, &texture.height, &n, 4);
+    texture.tex = d3d11_create_texture(R_Tex2DFormat_R8G8B8A8, {texture.width, texture.height}, texture.bitmap);
+    game_state->textures.push(texture);
 }
 
 internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, f32 dt) {
@@ -91,34 +133,23 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         game_state->plane_x = 0;
         game_state->plane_y = 0.66;
 
-        int bpp = 4;
-        int atlas_w, atlas_h, n;
-        u8 *atlas_bitmap = stbi_load("data/wolftextures.png", &atlas_w, &atlas_h, &n, 4);
-        for (int i = 0; i < 8; i++) {
-            Texture texture = {};
-            texture.width = 64;
-            texture.height = 64;
-            texture.bitmap = (u8 *)malloc(texture.width * texture.height * bpp);
 
-            int x = texture.width * i;
-            for (int y = 0; y < texture.height; y++) {
-                u8 *dst = texture.bitmap + y * texture.width * bpp;
-                u8 *src = atlas_bitmap + y * atlas_w * bpp + x * bpp;
-                MemoryCopy(dst, src, texture.width * bpp);
-            }
+        load_texture("data/wolftex/eagle.png");
+        load_texture("data/wolftex/redbrick.png");
+        load_texture("data/wolftex/purplestone.png");
+        load_texture("data/wolftex/greystone.png");
+        load_texture("data/wolftex/bluestone.png");
+        load_texture("data/wolftex/mossy.png");
+        load_texture("data/wolftex/wood.png");
+        load_texture("data/wolftex/colorstone.png");
+        load_texture("data/wolftex/barrel.png");
+        load_texture("data/wolftex/pillar.png");
+        load_texture("data/wolftex/greenlight.png");
 
-            texture.tex = d3d11_create_texture(R_Tex2DFormat_R8G8B8A8, {texture.width, texture.height}, texture.bitmap);
-            game_state->textures.push(texture);
-        }
-
-        stbi_image_free(atlas_bitmap);
+        update_screen_buffer(&g_back_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
     }
 
-    V2_F32 window_dimension = os_get_window_dim(window_handle);
-
-    if (window_dimension.x != g_back_buffer.width || window_dimension.y != g_back_buffer.height) {
-        update_screen_buffer(&g_back_buffer, (int)window_dimension.x, (int)window_dimension.y);
-    }
+    V2_F32 window_dim = os_get_window_dim(window_handle);
 
     input_begin(window_handle, events);
 
@@ -178,11 +209,11 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
             game_state->pos = new_pos;
         }
     }
-   
+
     clear_buffer(&g_back_buffer, 1, 0, 1, 1);
 
-    f64 w = (f64)window_dimension.x;
-    f64 h = (f64)window_dimension.y;
+    f64 w = (f64)SCREEN_WIDTH;
+    f64 h = (f64)SCREEN_HEIGHT;
     f64 plane_x = game_state->plane_x;
     f64 plane_y = game_state->plane_y;
     f64 pos_x = (f64)game_state->pos.x;
@@ -229,7 +260,6 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
             fill_pixel(&g_back_buffer, x, (int)h - y - 1, color.v);
         }
     }
-
 
     //@Note Wall raycasting
     for (int x = 0; x < w; x++) {
@@ -313,7 +343,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         f64 step = 1.0 * TEX_HEIGHT / line_height;
         f64 tex_pos = (y0 - h / 2 + line_height / 2) * step;
 
-        for (int y = y0; y < y1; y++) {
+        for (int y = y0; y <= y1; y++) {
             int tex_y = (int)tex_pos & (TEX_HEIGHT - 1);
             tex_pos += step;
 
@@ -328,6 +358,82 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
             }
 
             fill_pixel(&g_back_buffer, x, y, color.v);
+
+            z_buffer[x] = perp_wall_dist;
+        }
+    }
+
+    //@Note Sort sprites
+    for (int i = 0; i < NUM_SPRITES; i++) {
+        Sprite sprite = sprites[i];
+        f64 dist = ((pos_x - sprites[i].x) * (pos_x - sprites[i].x) + (pos_y - sprites[i].y) * (pos_y - sprites[i].y));
+        int j = i - 1;
+        while (j >= 0) {
+            f64 distj = (pos_x - sprites[j].x) * (pos_x - sprites[j].x) + (pos_y - sprites[j].y) * (pos_y - sprites[j].y);
+            if (distj > dist) {
+                break;
+            }
+
+            sprites[j + 1] = sprites[j];
+            j = j - 1;
+        }
+
+        sprites[j + 1] = sprite;
+    }
+
+    //@Note Sprite raycasting
+    for (int sprite_idx = 0; sprite_idx < NUM_SPRITES; sprite_idx++) {
+        Sprite *sprite = &sprites[sprite_idx];
+        f64 sprite_x = sprite->x - pos_x;
+        f64 sprite_y = sprite->y - pos_y;
+
+        //     [a b]
+        // A = [   ]
+        //     [c d]
+        ///                            [d -b]
+        // Inverse of A = 1/(ad-bc) *  [    ]
+        //                             [-c a]
+
+        //     [plane_x dir_x]
+        // A = [             ]
+        //     [plane_y dir_y]
+
+        // [dir_y     -dir_x]
+        // [                ] * 1/(ad - bc)  = A(-1)
+        // [-plane_y plane_x]
+
+        f64 det = 1.0 / (plane_x * dir.y - dir.x * plane_y);
+
+        f64 xform_x = det * (sprite_x * dir.y + sprite_y * -dir.x);
+        f64 xform_y = det * (sprite_x * -plane_y + sprite_y * plane_x);
+
+        int sprite_screen_x = (int)(w / 2 * (1 + xform_x / xform_y));
+
+        int sprite_h = abs((int)(h / xform_y));
+
+        int y0 = (int)h / 2 - sprite_h / 2;
+        int y1 = (int)h / 2 + sprite_h / 2;
+        if (y0 < 0) y0 = 0;
+        if (y1 >= h) y1 = (int)h - 1;
+
+        int sprite_w = abs((int)(h / xform_y));
+        int x0 = sprite_screen_x - sprite_w / 2;
+        int x1 = sprite_screen_x + sprite_w / 2;
+        if (x0 < 0) x0 = 0;
+        if (x1 >= w) x1 = (int)w - 1;
+
+        for (int x = x0; x <= x1; x++) {
+            int tex_x = (int)(256 * (x - (-sprite_w / 2 + sprite_screen_x)) * TEX_WIDTH / sprite_w / 256);
+            if (xform_y > 0 && x > 0 && x < w && xform_y < z_buffer[x]) {
+                for (int y = y0; y <= y1; y++) {
+                    int d = y * 256 - (int)h * 128 + sprite_h * 128;
+                    int tex_y = ((d * TEX_HEIGHT) / sprite_h) / 256;
+
+                    Texture *texture = &game_state->textures[sprite->tex];
+                    u32 color = ((u32 *)texture->bitmap)[tex_y * TEX_WIDTH + tex_x];
+                    if ((color & 0x00FFFFFF) != 0) fill_pixel(&g_back_buffer, x, y, color);
+                }
+            }
         }
     }
 
@@ -336,11 +442,10 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     load_screen_buffer_texture(&g_back_buffer);
 
     draw_begin(window_handle);
-    M4_F32 ortho = ortho_rh_zo(0.0f, window_dimension.x, 0.0f, window_dimension.y, -1.0f, 1.0f);
+    M4_F32 ortho = ortho_rh_zo(0.0f, window_dim.x, 0.0f, window_dim.y, -1.0f, 1.0f);
     draw_set_xform(ortho);
-    draw_quad(g_back_buffer.tex, make_rect(0.0f, 0.0f, window_dimension.x, window_dimension.y), make_rect(0, 0, 1, 1));
+    draw_quad(g_back_buffer.tex, make_rect(0.0f, 0.0f, SCREEN_WIDTH, SCREEN_HEIGHT), make_rect(0, 0, 1, 1));
     d3d11_render(window_handle, draw_bucket);
-
 
     r_d3d11_state->swap_chain->Present(1, 0);
 
