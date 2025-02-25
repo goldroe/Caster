@@ -5,41 +5,33 @@ global Game_State *game_state;
 #define TEX_WIDTH 64
 #define TEX_HEIGHT 64
 
-#define MAP_HEIGHT 32
-#define MAP_WIDTH 32
+#define MAP_HEIGHT 24
+#define MAP_WIDTH 24
 global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,4,4,4,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+  {8,8,8,8,8,8,8,8,8,8,8,4,4,6,4,4,6,4,6,4,4,4,6,4},
+  {8,0,0,0,0,0,0,0,0,0,8,4,0,0,0,0,0,0,0,0,0,0,0,4},
+  {8,0,3,3,0,0,0,0,0,8,8,4,0,0,0,0,0,0,0,0,0,0,0,6},
+  {8,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6},
+  {8,0,3,3,0,0,0,0,0,8,8,4,0,0,0,0,0,0,0,0,0,0,0,4},
+  {8,0,0,0,0,0,0,0,0,0,8,4,0,0,0,0,0,6,6,6,0,6,4,6},
+  {8,8,8,8,0,8,8,8,8,8,8,4,4,4,4,4,4,6,0,0,0,0,0,6},
+  {7,7,7,7,0,7,7,7,7,0,8,0,8,0,8,0,8,4,0,4,0,6,0,6},
+  {7,7,0,0,0,0,0,0,7,8,0,8,0,8,0,8,8,6,0,0,0,0,0,6},
+  {7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,6,0,0,0,0,0,4},
+  {7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,6,0,6,0,6,0,6},
+  {7,7,0,0,0,0,0,0,7,8,0,8,0,8,0,8,8,6,4,6,0,6,6,6},
+  {7,7,7,7,0,7,7,7,7,8,8,4,0,6,8,4,8,3,3,3,0,3,3,3},
+  {2,2,2,2,0,2,2,2,2,4,6,4,0,0,6,0,6,3,0,0,0,0,0,3},
+  {2,2,0,0,0,0,0,2,2,4,0,0,0,0,0,0,4,3,0,0,0,0,0,3},
+  {2,0,0,0,0,0,0,0,2,4,0,0,0,0,0,0,4,3,0,0,0,0,0,3},
+  {1,0,0,0,0,0,0,0,1,4,4,4,4,4,6,0,6,3,3,0,0,0,3,3},
+  {2,0,0,0,0,0,0,0,2,2,2,1,2,2,2,6,6,0,0,5,0,5,0,5},
+  {2,2,0,0,0,0,0,2,2,2,0,0,0,2,2,0,5,0,5,0,0,0,5,5},
+  {2,0,0,0,0,0,0,0,2,0,0,0,0,0,2,5,0,5,0,5,0,5,0,5},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5},
+  {2,0,0,0,0,0,0,0,2,0,0,0,0,0,2,5,0,5,0,5,0,5,0,5},
+  {2,2,0,0,0,0,0,2,2,2,0,0,0,2,2,0,5,0,5,0,0,0,5,5},
+  {2,2,2,2,1,2,2,2,2,2,2,1,2,2,2,5,5,5,5,5,5,5,5,5}
 };
 
 internal void update_screen_buffer(Back_Buffer *buffer, int width, int height) {
@@ -84,8 +76,6 @@ internal void fill_vertical_line(Back_Buffer *buffer, int x, int y0, int y1, u32
     }
 }
 
-
-
 internal void fill_pixel(Back_Buffer *buffer, int x, int y, u32 color) {
     ((u32 *)buffer->pixels)[y * buffer->width + x] = color;
 }
@@ -96,11 +86,10 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         first_call = false;
 
         game_state = new Game_State();
-        game_state->pos = v2_f32(16.0f, 30.0f);
+        game_state->pos = v2_f32(22.0f, 1.5f);
         game_state->dir = v2_f32(-1.0f, 0.0f);
         game_state->plane_x = 0;
         game_state->plane_y = 0.66;
-
 
         int bpp = 4;
         int atlas_w, atlas_h, n;
@@ -190,7 +179,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         }
     }
    
-    clear_buffer(&g_back_buffer, 0, 0, 0, 1);
+    clear_buffer(&g_back_buffer, 1, 0, 1, 1);
 
     f64 w = (f64)window_dimension.x;
     f64 h = (f64)window_dimension.y;
@@ -199,7 +188,50 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     f64 pos_x = (f64)game_state->pos.x;
     f64 pos_y = (f64)game_state->pos.y;
 
-    //@Note Raycasting
+    V2_F32 dir = game_state->dir;
+
+    //@Note Floor raycasting
+    for (int y = (int)h / 2 + 1; y < h; y++) {
+        f64 ray_x0 = dir.x - plane_x;
+        f64 ray_y0 = dir.y - plane_y;
+        f64 ray_x1 = dir.x + plane_x;
+        f64 ray_y1 = dir.y + plane_y;
+
+        int p = y - (int)(h / 2);
+        f32 pz = (f32)h * 0.5f;
+        f32 row_distance = pz / p;
+
+        V2_F32 floor_pos;
+        floor_pos.x = (f32)(pos_x + row_distance * ray_x0);
+        floor_pos.y = (f32)(pos_y + row_distance * ray_y0);
+
+        V2_F32 floor_step;
+        floor_step.x = (f32)(row_distance * (ray_x1 - ray_x0) / w);
+        floor_step.y = (f32)(row_distance * (ray_y1 - ray_y0) / w);
+
+        for (int x = 0; x < w; x++) {
+            int cell_x = (int)floor_pos.x;
+            int cell_y = (int)floor_pos.y;
+
+            int tex_x = (int)(TEX_WIDTH * (floor_pos.x - cell_x)) & (TEX_WIDTH - 1);
+            int tex_y = (int)(TEX_HEIGHT * (floor_pos.y - cell_y)) & (TEX_HEIGHT - 1);
+
+            floor_pos += floor_step;
+
+            Texture *floor_texture = &game_state->textures[3];
+            Texture *ceiling_texture = &game_state->textures[6];
+
+            RGBA color;
+            color.v = ((u32 *)floor_texture->bitmap)[tex_y * TEX_WIDTH + tex_x];
+            fill_pixel(&g_back_buffer, x, y, color.v);
+
+            color.v = ((u32 *)ceiling_texture->bitmap)[tex_y * TEX_WIDTH + tex_x];
+            fill_pixel(&g_back_buffer, x, (int)h - y - 1, color.v);
+        }
+    }
+
+
+    //@Note Wall raycasting
     for (int x = 0; x < w; x++) {
         int map_x = (int)game_state->pos.x;
         int map_y = (int)game_state->pos.y;
@@ -307,7 +339,6 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     M4_F32 ortho = ortho_rh_zo(0.0f, window_dimension.x, 0.0f, window_dimension.y, -1.0f, 1.0f);
     draw_set_xform(ortho);
     draw_quad(g_back_buffer.tex, make_rect(0.0f, 0.0f, window_dimension.x, window_dimension.y), make_rect(0, 0, 1, 1));
-    // draw_quad(game_state->textures[3].tex, make_rect(0.0f, 0.0f, window_dimension.x, window_dimension.y), make_rect(0, 0, 1, 1));
     d3d11_render(window_handle, draw_bucket);
 
 
