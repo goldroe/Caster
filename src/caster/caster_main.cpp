@@ -63,7 +63,12 @@ int main() {
         printf("RegisterClassA failed, err:%d\n", GetLastError());
     }
 
-    HWND hWnd = CreateWindowA(class_name, "Caster", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hinstance, NULL);
+    HWND hWnd;
+    {
+        RECT client_rect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+        AdjustWindowRect(&client_rect, WS_OVERLAPPEDWINDOW, FALSE);
+        hWnd = CreateWindowA(class_name, "Caster", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, client_rect.right - client_rect.left, client_rect.bottom - client_rect.top, NULL, NULL, hinstance, NULL);
+    }
 
     // ShowCursor(FALSE);
 
