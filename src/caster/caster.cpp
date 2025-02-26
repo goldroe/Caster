@@ -10,8 +10,6 @@ global Font *default_font;
 #define TEX_WIDTH 64
 #define TEX_HEIGHT 64
 
-global f64 z_buffer[SCREEN_WIDTH];
-
 #define MAP_HEIGHT 24
 #define MAP_WIDTH 24
 global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
@@ -35,40 +33,39 @@ global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
   {2,0,0,0,0,0,0,0,2,2,2,1,2,2,2,6,6,0,0,5,0,5,0,5},
   {2,2,0,0,0,0,0,2,2,2,0,0,0,2,2,0,5,0,5,0,0,0,5,5},
   {2,0,0,0,0,0,0,0,2,0,0,0,0,0,2,5,0,5,0,5,0,5,0,5},
-  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5},
+  {1,0,0,0,0,0,0,0,14,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5},
   {2,0,0,0,0,0,0,0,2,0,0,0,0,0,2,5,0,5,0,5,0,5,0,5},
   {2,2,0,0,0,0,0,2,2,2,0,0,0,2,2,0,5,0,5,0,0,0,5,5},
   {2,2,2,2,1,2,2,2,2,2,2,1,2,2,2,5,5,5,5,5,5,5,5,5}
 };
 
-#define NUM_SPRITES 19
-Sprite sprites[NUM_SPRITES] =
-{
-  {20.5, 11.5, 1,1,0, 10}, //green light in front of playerstart
-  //green lights in every room
-  {18.5,4.5,  1,1,0, 10},
-  {10.0,4.5,  1,1,0, 10},
-  {10.0,12.5, 1,1,0, 10},
-  {3.5, 6.5,  1,1,0, 10},
-  {3.5, 20.5, 1,1,0, 10},
-  {3.5, 14.5, 1,1,0, 10},
-  {14.5,20.5, 1,1,0, 10},
+global f64 z_buffer[SCREEN_WIDTH];
 
-  //row of pillars in fron1t of wall: fisheye test
-  {18.5, 10.5, 1,1,0, 9},
-  {18.5, 11.5, 1,1,0, 9},
-  {18.5, 12.5, 1,1,0, 9},
+internal void entity_free(Entity *e) {
+    if (e) free(e);
+}
 
-  //some barrels around the map
-  {18.5, 1.5, 1,1,0, 8},
-  {15.5, 1.5, 1,1,0, 8},
-  {16.0, 1.8, 1,1,0, 8},
-  {16.2, 1.2, 1,1,0, 8},
-  {18.5, 5.5, 2,2,128, 8},
-  {15.5, 4.5, 2,2,128, 8},
-  {19.0, 4.1, 2,2,128, 8},
-  {14.5, 4.8, 2,2,128, 8},
-};
+internal Entity *entity_alloc() {
+    Entity *node = (Entity *)calloc(sizeof(Entity), 1);
+    return node;
+}
+
+internal void entity_destroy(Entity *e) {
+    e->to_be_destroyed = true;
+}
+
+internal Entity *make_entity(int kind, f64 x, f64 y, int tex, int u, int v, f32 off) {
+    Entity *e = entity_alloc();
+    e->kind = kind;
+    e->x = x;
+    e->y = y;
+    e->tex = tex;
+    e->u_scale = u;
+    e->v_scale = v;
+    e->v_adjust = off;
+    game_state->entities.push(e);
+    return e;
+}
 
 internal void update_screen_buffer(Back_Buffer *buffer, int width, int height) {
     buffer->bytes_per_pixel = 4;
@@ -135,7 +132,6 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         game_state->plane_x = 0;
         game_state->plane_y = 0.66;
 
-
         load_texture("data/wolftex/eagle.png");
         load_texture("data/wolftex/redbrick.png");
         load_texture("data/wolftex/purplestone.png");
@@ -147,16 +143,57 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         load_texture("data/wolftex/barrel.png");
         load_texture("data/wolftex/pillar.png");
         load_texture("data/wolftex/greenlight.png");
+        load_texture("data/mob.png");
+        load_texture("data/ball.png");
+        load_texture("data/door.png");
 
         update_screen_buffer(&g_back_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
 
         Arena *temp = make_arena(get_malloc_allocator());
         default_font = load_font(temp, str8_lit("data/fonts/consolas.ttf"), 20);
+
+        {
+            make_entity(E_OBJ, 20.5, 11.5, 10, 1, 1, 0); //green light in front of playerstart
+            
+            // lights
+            make_entity(E_OBJ, 18.5, 1.5, 8, 1, 1, 0);
+            make_entity(E_OBJ, 15.5, 1.5, 8, 1, 1, 0);
+            make_entity(E_OBJ, 16.0, 1.8, 8, 1, 1, 0);
+            make_entity(E_OBJ, 16.2, 1.2, 8, 1, 1, 0);
+            make_entity(E_OBJ, 18.5, 5.5, 8, 2, 2, 128);
+            make_entity(E_OBJ, 15.5, 4.5, 8, 2, 2, 128);
+            make_entity(E_OBJ, 19.0, 4.1, 8, 2, 2, 128);
+            make_entity(E_OBJ, 14.5, 4.8, 8, 2, 2, 128);
+
+            // barrels
+            make_entity(E_WALL, 18.5, 4.5,  10, 1, 1, 0);
+            make_entity(E_WALL, 10.0, 4.5,  10, 1, 1, 0);
+            make_entity(E_WALL, 10.0, 12.5, 10, 1, 1, 0);
+            make_entity(E_WALL, 3.5,  6.5,  10, 1, 1, 0);
+            make_entity(E_WALL, 3.5,  20.5, 10, 1, 1, 0);
+            make_entity(E_WALL, 3.5,  14.5, 10, 1, 1, 0);
+            make_entity(E_WALL, 14.5, 20.5, 10, 1, 1, 0);
+
+            // pillar
+            make_entity(E_OBJ, 18.5, 10.5,  9, 1, 1, 0);
+            make_entity(E_OBJ, 18.5, 11.5,  9, 1, 1, 0);
+            make_entity(E_OBJ, 18.5, 12.5,  9, 1, 1, 0);
+            make_entity(E_MOB, 17.0, 3.0,  11, 1, 1, 0);
+        }
     }
 
     V2_F32 window_dim = os_get_window_dim(window_handle);
 
     input_begin(window_handle, events);
+
+    for (int i = 0; i < game_state->entities.count; i++) {
+        Entity *e = game_state->entities[i];
+        if (e->to_be_destroyed) {
+            entity_free(e);
+            game_state->entities.remove(i);
+            i -= 1;
+        }
+    }
 
     //@Note Camera
     {
@@ -219,6 +256,45 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         if (world_map[(int)new_pos.y][(int)new_pos.x] == 0) {
             game_state->pos = new_pos;
         }
+    }
+
+    //@Note Update entities
+    for (int i = 0; i < game_state->entities.count; i++) {
+        Entity *e = game_state->entities[i];
+        switch (e->kind) {
+        case E_MOB:
+        {
+            V2_F32 dir = normalize(v2_f32(game_state->pos.x - (f32)e->x, game_state->pos.y - (f32)e->y));
+            f32 speed = 2.0f;
+            e->x += dir.x * speed * dt;
+            e->y += dir.y * speed * dt;
+            break;
+        }
+        case E_BALL:
+        {
+            f32 speed = 10.0f;
+            e->x += e->dir_x * speed * dt;
+            e->y += e->dir_y * speed * dt;
+            for (int i = 0; i < game_state->entities.count; i++) {
+                Entity *hit = game_state->entities[i];
+                if (hit == e) continue;
+                if (hit->is_collidable() && 
+                    e->x - 0.5 < hit->x + 0.5 && e->x + 0.5 > hit->x - 0.5 && 
+                    e->y - 0.5 < hit->y + 0.5 && e->y + 0.5 > hit->y - 0.5) {
+                    entity_destroy(e);
+                }
+            }
+            break;
+        }
+        }
+    }
+
+    if (key_pressed(OS_KEY_SPACE)) {
+        Entity *ball = make_entity(E_BALL, game_state->pos.x, game_state->pos.y, 12, 1, 1, 0);
+        ball->dir_x = game_state->dir.x;
+        ball->dir_y = game_state->dir.y;
+        ball->x += ball->dir_x * 0.5f;
+        ball->y += ball->dir_y * 0.5f;
     }
 
     clear_buffer(&g_back_buffer, 1, 0, 1, 1);
@@ -374,29 +450,30 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         }
     }
 
-    //@Note Sort sprites
-    for (int i = 0; i < NUM_SPRITES; i++) {
-        Sprite sprite = sprites[i];
-        f64 dist = ((pos_x - sprites[i].x) * (pos_x - sprites[i].x) + (pos_y - sprites[i].y) * (pos_y - sprites[i].y));
+    //@Note Sort entities
+    for (int i = 0; i < game_state->entities.count; i++) {
+        Entity *entity = game_state->entities[i];
+        f64 dist = ((pos_x - entity->x) * (pos_x - entity->x) + (pos_y - entity->y) * (pos_y - entity->y));
         int j = i - 1;
         while (j >= 0) {
-            f64 distj = (pos_x - sprites[j].x) * (pos_x - sprites[j].x) + (pos_y - sprites[j].y) * (pos_y - sprites[j].y);
+            Entity *ej = game_state->entities[j];
+            f64 distj = (pos_x - ej->x) * (pos_x - ej->x) + (pos_y - ej->y) * (pos_y - ej->y);
             if (distj > dist) {
                 break;
             }
 
-            sprites[j + 1] = sprites[j];
+            game_state->entities[j + 1] = game_state->entities[j];
             j = j - 1;
         }
 
-        sprites[j + 1] = sprite;
+        game_state->entities[j + 1] = entity;
     }
 
-    //@Note Sprite raycasting
-    for (int sprite_idx = 0; sprite_idx < NUM_SPRITES; sprite_idx++) {
-        Sprite sprite = sprites[sprite_idx];
-        f64 sprite_x = sprite.x - pos_x;
-        f64 sprite_y = sprite.y - pos_y;
+    //@Note entity raycasting
+    for (int entity_idx = 0; entity_idx < game_state->entities.count; entity_idx++) {
+        Entity *e = game_state->entities[entity_idx];
+        f64 entity_x = e->x - pos_x;
+        f64 entity_y = e->y - pos_y;
 
         //     [a b]
         // A = [   ]
@@ -415,33 +492,33 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
 
         f64 det = 1.0 / (plane_x * dir.y - dir.x * plane_y);
 
-        f64 xform_x = det * (sprite_x * dir.y + sprite_y * -dir.x);
-        f64 xform_y = det * (sprite_x * -plane_y + sprite_y * plane_x);
+        f64 xform_x = det * (entity_x * dir.y + entity_y * -dir.x);
+        f64 xform_y = det * (entity_x * -plane_y + entity_y * plane_x);
 
-        int sprite_screen_x = (int)(w / 2 * (1 + xform_x / xform_y));
+        int entity_screen_x = (int)(w / 2 * (1 + xform_x / xform_y));
 
-        int sprite_h = abs((int)(h / xform_y)) / sprite.v_scale;
-        int adjust_y = (int)(sprite.v_adjust / xform_y);
+        int entity_h = abs((int)(h / xform_y)) / e->v_scale;
+        int adjust_y = (int)(e->v_adjust / xform_y);
 
-        int y0 = (int)h / 2 - sprite_h / 2 + adjust_y;
-        int y1 = (int)h / 2 + sprite_h / 2 + adjust_y;
+        int y0 = (int)h / 2 - entity_h / 2 + adjust_y;
+        int y1 = (int)h / 2 + entity_h / 2 + adjust_y;
         if (y0 < 0) y0 = 0;
         if (y1 >= h) y1 = (int)h - 1;
 
-        int sprite_w = abs((int)(h / xform_y)) / sprite.u_scale;
-        int x0 = sprite_screen_x - sprite_w / 2;
-        int x1 = sprite_screen_x + sprite_w / 2;
+        int entity_w = abs((int)(h / xform_y)) / e->u_scale;
+        int x0 = entity_screen_x - entity_w / 2;
+        int x1 = entity_screen_x + entity_w / 2;
         if (x0 < 0) x0 = 0;
         if (x1 >= w) x1 = (int)w - 1;
 
         for (int x = x0; x < x1; x++) {
-            int tex_x = (int)(256 * (x - (-sprite_w / 2 + sprite_screen_x)) * TEX_WIDTH / sprite_w / 256);
+            int tex_x = (int)(256 * (x - (-entity_w / 2 + entity_screen_x)) * TEX_WIDTH / entity_w / 256);
             if (xform_y > 0 && x > 0 && x < w && xform_y < z_buffer[x]) {
                 for (int y = y0; y < y1; y++) {
-                    int d = (y - adjust_y) * 256 - (int)h * 128 + sprite_h * 128;
-                    int tex_y = ((d * TEX_HEIGHT) / sprite_h) / 256;
+                    int d = (y - adjust_y) * 256 - (int)h * 128 + entity_h * 128;
+                    int tex_y = ((d * TEX_HEIGHT) / entity_h) / 256;
 
-                    Texture texture = game_state->textures[sprite.tex];
+                    Texture texture = game_state->textures[e->tex];
                     u32 color = ((u32 *)texture.bitmap)[tex_y * TEX_WIDTH + tex_x];
                     if ((color & 0x00FFFFFF) != 0) fill_pixel(&g_back_buffer, x, y, color);
                 }

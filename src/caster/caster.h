@@ -16,13 +16,34 @@ struct Texture {
     R_Handle tex;
 };
 
-struct Sprite {
+enum {
+    E_WALL,
+    E_OBJ,
+    E_PLAYER,
+    E_MOB,
+    E_BALL,
+    E_COUNT
+};
+
+struct Entity {
+    int kind;
     f64 x;
     f64 y;
+
+    f64 dir_x;
+    f64 dir_y;
+
+    // sprite
+    int tex;
     int u_scale;
     int v_scale;
     f32 v_adjust;
-    int tex;
+
+    b32 to_be_destroyed;
+
+    bool inline is_collidable() {
+        return kind == E_WALL || kind == E_MOB || kind == E_PLAYER;
+    }
 };
 
 struct Game_State {
@@ -33,6 +54,7 @@ struct Game_State {
     f64 plane_y;
 
     Auto_Array<Texture> textures;
+    Auto_Array<Entity*> entities;
 };
 
 #endif // CASTER_H
