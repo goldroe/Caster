@@ -2,6 +2,8 @@
 global Back_Buffer g_back_buffer;
 global Game_State *game_state;
 
+global Font *default_font;
+
 #define SCREEN_WIDTH   640
 #define SCREEN_HEIGHT  480
 
@@ -42,30 +44,30 @@ global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
 #define NUM_SPRITES 19
 Sprite sprites[NUM_SPRITES] =
 {
-  {20.5, 11.5, 10}, //green light in front of playerstart
+  {20.5, 11.5, 1,1,0, 10}, //green light in front of playerstart
   //green lights in every room
-  {18.5,4.5, 10},
-  {10.0,4.5, 10},
-  {10.0,12.5,10},
-  {3.5, 6.5, 10},
-  {3.5, 20.5,10},
-  {3.5, 14.5,10},
-  {14.5,20.5,10},
+  {18.5,4.5,  1,1,0, 10},
+  {10.0,4.5,  1,1,0, 10},
+  {10.0,12.5, 1,1,0, 10},
+  {3.5, 6.5,  1,1,0, 10},
+  {3.5, 20.5, 1,1,0, 10},
+  {3.5, 14.5, 1,1,0, 10},
+  {14.5,20.5, 1,1,0, 10},
 
-  //row of pillars in front of wall: fisheye test
-  {18.5, 10.5, 9},
-  {18.5, 11.5, 9},
-  {18.5, 12.5, 9},
+  //row of pillars in fron1t of wall: fisheye test
+  {18.5, 10.5, 1,1,0, 9},
+  {18.5, 11.5, 1,1,0, 9},
+  {18.5, 12.5, 1,1,0, 9},
 
   //some barrels around the map
-  {21.5, 1.5,  8},
-  {15.5, 1.5,  8},
-  {16.0, 1.8,  8},
-  {16.2, 1.2,  8},
-  {3.5,  2.5,  8},
-  {9.5,  15.5, 8},
-  {10.0, 15.1, 8},
-  {10.5, 15.8, 8},
+  {18.5, 1.5, 1,1,0, 8},
+  {15.5, 1.5, 1,1,0, 8},
+  {16.0, 1.8, 1,1,0, 8},
+  {16.2, 1.2, 1,1,0, 8},
+  {18.5, 5.5, 2,2,128, 8},
+  {15.5, 4.5, 2,2,128, 8},
+  {19.0, 4.1, 2,2,128, 8},
+  {14.5, 4.8, 2,2,128, 8},
 };
 
 internal void update_screen_buffer(Back_Buffer *buffer, int width, int height) {
@@ -147,6 +149,9 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         load_texture("data/wolftex/greenlight.png");
 
         update_screen_buffer(&g_back_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+        Arena *temp = make_arena(get_malloc_allocator());
+        default_font = load_font(temp, str8_lit("data/fonts/consolas.ttf"), 20);
     }
 
     V2_F32 window_dim = os_get_window_dim(window_handle);
@@ -156,6 +161,12 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     //@Note Camera
     {
         f32 mouse_dx = get_mouse_delta().x;
+        if (key_down(OS_KEY_COMMA)) {
+            mouse_dx = -10.0;
+        }
+        if (key_down(OS_KEY_PERIOD)) {
+            mouse_dx = 10.0;
+        }
         f32 rot_speed = -0.125f * mouse_dx * dt;
         f64 plane_x = game_state->plane_x;
         f64 plane_y = game_state->plane_y;
@@ -343,7 +354,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         f64 step = 1.0 * TEX_HEIGHT / line_height;
         f64 tex_pos = (y0 - h / 2 + line_height / 2) * step;
 
-        for (int y = y0; y <= y1; y++) {
+        for (int y = y0; y < y1; y++) {
             int tex_y = (int)tex_pos & (TEX_HEIGHT - 1);
             tex_pos += step;
 
@@ -383,9 +394,9 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
 
     //@Note Sprite raycasting
     for (int sprite_idx = 0; sprite_idx < NUM_SPRITES; sprite_idx++) {
-        Sprite *sprite = &sprites[sprite_idx];
-        f64 sprite_x = sprite->x - pos_x;
-        f64 sprite_y = sprite->y - pos_y;
+        Sprite sprite = sprites[sprite_idx];
+        f64 sprite_x = sprite.x - pos_x;
+        f64 sprite_y = sprite.y - pos_y;
 
         //     [a b]
         // A = [   ]
@@ -409,34 +420,34 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
 
         int sprite_screen_x = (int)(w / 2 * (1 + xform_x / xform_y));
 
-        int sprite_h = abs((int)(h / xform_y));
+        int sprite_h = abs((int)(h / xform_y)) / sprite.v_scale;
+        int adjust_y = (int)(sprite.v_adjust / xform_y);
 
-        int y0 = (int)h / 2 - sprite_h / 2;
-        int y1 = (int)h / 2 + sprite_h / 2;
+        int y0 = (int)h / 2 - sprite_h / 2 + adjust_y;
+        int y1 = (int)h / 2 + sprite_h / 2 + adjust_y;
         if (y0 < 0) y0 = 0;
         if (y1 >= h) y1 = (int)h - 1;
 
-        int sprite_w = abs((int)(h / xform_y));
+        int sprite_w = abs((int)(h / xform_y)) / sprite.u_scale;
         int x0 = sprite_screen_x - sprite_w / 2;
         int x1 = sprite_screen_x + sprite_w / 2;
         if (x0 < 0) x0 = 0;
         if (x1 >= w) x1 = (int)w - 1;
 
-        for (int x = x0; x <= x1; x++) {
+        for (int x = x0; x < x1; x++) {
             int tex_x = (int)(256 * (x - (-sprite_w / 2 + sprite_screen_x)) * TEX_WIDTH / sprite_w / 256);
             if (xform_y > 0 && x > 0 && x < w && xform_y < z_buffer[x]) {
-                for (int y = y0; y <= y1; y++) {
-                    int d = y * 256 - (int)h * 128 + sprite_h * 128;
+                for (int y = y0; y < y1; y++) {
+                    int d = (y - adjust_y) * 256 - (int)h * 128 + sprite_h * 128;
                     int tex_y = ((d * TEX_HEIGHT) / sprite_h) / 256;
 
-                    Texture *texture = &game_state->textures[sprite->tex];
-                    u32 color = ((u32 *)texture->bitmap)[tex_y * TEX_WIDTH + tex_x];
+                    Texture texture = game_state->textures[sprite.tex];
+                    u32 color = ((u32 *)texture.bitmap)[tex_y * TEX_WIDTH + tex_x];
                     if ((color & 0x00FFFFFF) != 0) fill_pixel(&g_back_buffer, x, y, color);
                 }
             }
         }
     }
-
 
     //@Note Draw backbuffer texture
     load_screen_buffer_texture(&g_back_buffer);
@@ -445,6 +456,11 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     M4_F32 ortho = ortho_rh_zo(0.0f, window_dim.x, 0.0f, window_dim.y, -1.0f, 1.0f);
     draw_set_xform(ortho);
     draw_quad(g_back_buffer.tex, make_rect(0.0f, 0.0f, SCREEN_WIDTH, SCREEN_HEIGHT), make_rect(0, 0, 1, 1));
+
+    M4_F32 ortho_text = ortho_rh_zo(0.0f, window_dim.x, window_dim.y, 0.0f, -1.0f, 1.0f);
+    draw_set_xform(ortho_text);
+    draw_textf(default_font, v4_f32(1.0f, 0.0f, 1.0f, 1.0f), V2_Zero, "%f %f", game_state->pos.x, game_state->pos.y);
+    
     d3d11_render(window_handle, draw_bucket);
 
     r_d3d11_state->swap_chain->Present(1, 0);

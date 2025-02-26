@@ -19,6 +19,9 @@ struct Texture {
 struct Sprite {
     f64 x;
     f64 y;
+    int u_scale;
+    int v_scale;
+    f32 v_adjust;
     int tex;
 };
 
