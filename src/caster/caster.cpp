@@ -38,10 +38,18 @@ global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
   {2,2,0,0,0,0,0,2,2,2,0,0,0,2,2,0,5,0,5,0,0,0,5,5},
   {2,2,2,2,1,2,2,2,2,2,2,1,2,2,2,5,5,5,5,5,5,5,5,5}
 };
-global f32 timer_map[MAP_HEIGHT][MAP_WIDTH];
-global int state_map[MAP_HEIGHT][MAP_WIDTH];
+
+global Door door_map[MAP_HEIGHT][MAP_WIDTH];
 
 global f64 z_buffer[SCREEN_WIDTH];
+
+internal inline f32 ease_in_circ(f32 x) {
+    return 1.0f - sqrtf(1.0f - powf(x, 2));
+}
+
+internal inline f32 ease_out_sine(f32 x) {
+    return sinf((x * PI) / 2);
+}
 
 internal void entity_free(Entity *e) {
     if (e) free(e);
@@ -237,7 +245,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
             make_entity(E_OBJ, 18.5, 10.5,  9, 1, 1, 0);
             make_entity(E_OBJ, 18.5, 11.5,  9, 1, 1, 0);
             make_entity(E_OBJ, 18.5, 12.5,  9, 1, 1, 0);
-            make_entity(E_MOB, 17.0, 3.0,  11, 1, 1, 0);
+            //make_entity(E_MOB, 17.0, 3.0,  11, 1, 1, 0);
         }
     }
 
@@ -312,19 +320,36 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         V2_F32 new_pos = pos + speed * direction * dt;
 
         // Collision
-        if (world_map[(int)new_pos.y][(int)new_pos.x] == 0) {
+        int map_x = (int)new_pos.x;
+        int map_y = (int)new_pos.y;
+        int wall = world_map[map_y][map_x];
+
+        bool collides = false;
+        if (wall != 0) {
+            Door door = door_map[map_y][map_x];
+            collides = true;
+            if (door.state == STATE_OPEN) {
+                collides = false;
+            }
+        }
+
+        if (collides) {
+            //Raycast_Result ray;
+            //raycast(pos, dir, &ray);
+        } else {
             game_state->pos = new_pos;
         }
     }
 
     for (int y = 0; y < MAP_HEIGHT; y++) {
         for (int x = 0; x < MAP_WIDTH; x++) {
-            if (timer_map[y][x] == 1.0f) {
-                state_map[y][x] = STATE_OPEN;
+            Door *door = &door_map[y][x];
+            if (door->delta_t >= 1.0f) {
+                door->state = STATE_OPEN;
             }
 
-            if (state_map[y][x] == STATE_OPENING) {
-                timer_map[y][x] += dt;
+            if (door->state == STATE_OPENING) {
+                door->delta_t += dt;
             }
         }
     }
@@ -375,9 +400,9 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
             int wall = world_map[ray.dest_y][ray.dest_x];
             // door num
             if (wall == 14 && ray.dist < 1.0f) {
-                int *state = &state_map[ray.dest_y][ray.dest_x];
-                if (*state == STATE_CLOSE) {
-                    *state = STATE_OPENING;
+                Door *door = &door_map[ray.dest_y][ray.dest_x];
+                if (door->state == STATE_CLOSE) {
+                    door->state = STATE_OPENING;
                 }
             }
         }
@@ -471,6 +496,8 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         int hit = 0;
         int side;
 
+        int wall = 0;
+
         while (hit == 0) {
             if (side_dx < side_dy) {
                 side_dx += dx;
@@ -482,14 +509,38 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
                 side = 1;
             }
 
-            if (world_map[map_y][map_x] > 0) {
+            wall = world_map[map_y][map_x];
+            if (wall > 0) {
                 hit = 1;
+
+                //@Note Check open doors, don't render part of door that is being opened
+                if (wall == 14) {
+                    Door door = door_map[map_y][map_x];
+                    if (door.state == STATE_OPEN) {
+                        hit = 0;
+                    } else if (door.state == STATE_OPENING) {
+                        f64 perp_wall_dist = 0;
+                        if (side == 0) perp_wall_dist = side_dx - dx;
+                        if (side == 1) perp_wall_dist = side_dy - dy;
+
+                        f64 wall_x;
+                        if (side == 0) wall_x = pos_y + perp_wall_dist * raydir_y;
+                        else wall_x = pos_x + perp_wall_dist * raydir_x;
+                        wall_x -= floor(wall_x);
+
+                        f32 visible_w = ease_out_sine(1.0f - door.delta_t);
+                        if (wall_x > visible_w) {
+                            hit = 0;
+                        }
+                    }
+                }
             }
         }
 
         f64 perp_wall_dist = 0;
         if (side == 0) perp_wall_dist = side_dx - dx;
         if (side == 1) perp_wall_dist = side_dy - dy;
+
 
         int line_height = (int)(h / perp_wall_dist);
 
@@ -498,7 +549,6 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         if (y0 < 0) y0 = 0;
         if (y1 >= h) y1 = (int)h - 1;
 
-        int wall = world_map[map_y][map_x];
         int tex_idx = wall - 1;
 
         Texture *texture = &game_state->textures[tex_idx];
@@ -622,6 +672,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     M4_F32 ortho_text = ortho_rh_zo(0.0f, window_dim.x, window_dim.y, 0.0f, -1.0f, 1.0f);
     draw_set_xform(ortho_text);
     draw_textf(default_font, v4_f32(1.0f, 0.0f, 1.0f, 1.0f), V2_Zero, "%f %f", game_state->pos.x, game_state->pos.y);
+    draw_textf(default_font, v4_f32(1.0f, 0.0f, 1.0f, 1.0f), v2_f32(0.0f, 24.0f), "%f %f", game_state->dir.x, game_state->dir.y);
     
     d3d11_render(window_handle, draw_bucket);
 

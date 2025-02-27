@@ -1,6 +1,12 @@
 #ifndef CASTER_H
 #define CASTER_H
 
+struct Door {
+    int state;
+    f32 delta_t;
+    f32 target_t;
+};
+
 struct Raycast_Result {
     f32 dist;
     int dest_x;
