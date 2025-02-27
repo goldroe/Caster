@@ -1,6 +1,13 @@
 #ifndef CASTER_H
 #define CASTER_H
 
+struct Raycast_Result {
+    f32 dist;
+    int dest_x;
+    int dest_y;
+    int side;
+};
+
 struct Back_Buffer {
     u8 *pixels;
     int width;
@@ -14,6 +21,12 @@ struct Texture {
     int height;
     u8 *bitmap;
     R_Handle tex;
+};
+
+enum {
+    STATE_CLOSE,
+    STATE_OPENING,
+    STATE_OPEN
 };
 
 enum {

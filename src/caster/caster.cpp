@@ -16,9 +16,9 @@ global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
   {8,8,8,8,8,8,8,8,8,8,8,4,4,6,4,4,6,4,6,4,4,4,6,4},
   {8,0,0,0,0,0,0,0,0,0,8,4,0,0,0,0,0,0,0,0,0,0,0,4},
   {8,0,3,3,0,0,0,0,0,8,8,4,0,0,0,0,0,0,0,0,0,0,0,6},
-  {8,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6},
+  {8,0,0,3,0,0,0,0,0,0,0,14,0,0,0,0,0,0,0,0,0,0,0,6},
   {8,0,3,3,0,0,0,0,0,8,8,4,0,0,0,0,0,0,0,0,0,0,0,4},
-  {8,0,0,0,0,0,0,0,0,0,8,4,0,0,0,0,0,6,6,6,0,6,4,6},
+  {8,0,0,0,0,0,0,0,0,0,8,4,0,0,0,0,0,6,6,6,14,6,4,6},
   {8,8,8,8,0,8,8,8,8,8,8,4,4,4,4,4,4,6,0,0,0,0,0,6},
   {7,7,7,7,0,7,7,7,7,0,8,0,8,0,8,0,8,4,0,4,0,6,0,6},
   {7,7,0,0,0,0,0,0,7,8,0,8,0,8,0,8,8,6,0,0,0,0,0,6},
@@ -38,6 +38,8 @@ global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
   {2,2,0,0,0,0,0,2,2,2,0,0,0,2,2,0,5,0,5,0,0,0,5,5},
   {2,2,2,2,1,2,2,2,2,2,2,1,2,2,2,5,5,5,5,5,5,5,5,5}
 };
+global f32 timer_map[MAP_HEIGHT][MAP_WIDTH];
+global int state_map[MAP_HEIGHT][MAP_WIDTH];
 
 global f64 z_buffer[SCREEN_WIDTH];
 
@@ -119,6 +121,63 @@ internal void load_texture(const char *file_name) {
     texture.bitmap = (u8 *)stbi_load(file_name, &texture.width, &texture.height, &n, 4);
     texture.tex = d3d11_create_texture(R_Tex2DFormat_R8G8B8A8, {texture.width, texture.height}, texture.bitmap);
     game_state->textures.push(texture);
+}
+
+internal bool raycast(V2_F32 pos, V2_F32 dir, Raycast_Result *res) {
+    int map_x = (int)pos.x;
+    int map_y = (int)pos.y;
+
+    f32 dx = (dir.x != 0.0f) ? Abs(1.0f / dir.x) : 1000000.0f;
+    f32 dy = (dir.y != 0.0f) ? Abs(1.0f / dir.y) : 1000000.0f;
+
+    f32 side_dx, side_dy;
+    int step_x, step_y;
+
+    if (dir.x < 0) {
+        step_x = -1;
+        side_dx = (pos.x - map_x) * dx;
+    } else {
+        step_x = 1;
+        side_dx = (map_x + 1.0f - pos.x) * dx;
+    }
+    if (dir.y < 0) {
+        step_y = -1;
+        side_dy = (pos.y - map_y) * dx;
+    } else {
+        step_y = 1;
+        side_dy = (map_y + 1.0f - pos.y) * dy;
+    }
+
+    bool hit = false;
+    int side = 0;
+    while (hit == 0) {
+        if (side_dx < side_dy) {
+            side_dx += dx;
+            map_x += step_x;
+            side = 0;
+        } else {
+            side_dy += dy;
+            map_y += step_y;
+            side = 1;
+        }
+
+        if (world_map[map_y][map_x] > 0) {
+            hit = true;
+        }
+    }
+
+    f32 dist = 0;
+    if (side == 0) dist = side_dx - dx;
+    if (side == 1) dist = side_dy - dy;
+
+    if (res) {
+        res->dist = dist;
+        res->side = side;
+        res->dest_x = map_x;
+        res->dest_y = map_y;
+    }
+
+    return hit;
 }
 
 internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, f32 dt) {
@@ -258,6 +317,18 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         }
     }
 
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
+            if (timer_map[y][x] == 1.0f) {
+                state_map[y][x] = STATE_OPEN;
+            }
+
+            if (state_map[y][x] == STATE_OPENING) {
+                timer_map[y][x] += dt;
+            }
+        }
+    }
+
     //@Note Update entities
     for (int i = 0; i < game_state->entities.count; i++) {
         Entity *e = game_state->entities[i];
@@ -295,6 +366,21 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         ball->dir_y = game_state->dir.y;
         ball->x += ball->dir_x * 0.5f;
         ball->y += ball->dir_y * 0.5f;
+    }
+
+    //@Note Open door
+    if (key_pressed(OS_KEY_E)) {
+        Raycast_Result ray;
+        if (raycast(game_state->pos, game_state->dir, &ray)) {
+            int wall = world_map[ray.dest_y][ray.dest_x];
+            // door num
+            if (wall == 14 && ray.dist < 1.0f) {
+                int *state = &state_map[ray.dest_y][ray.dest_x];
+                if (*state == STATE_CLOSE) {
+                    *state = STATE_OPENING;
+                }
+            }
+        }
     }
 
     clear_buffer(&g_back_buffer, 1, 0, 1, 1);
@@ -411,7 +497,6 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         int y1 = (int)h / 2 + line_height / 2; 
         if (y0 < 0) y0 = 0;
         if (y1 >= h) y1 = (int)h - 1;
-
 
         int wall = world_map[map_y][map_x];
         int tex_idx = wall - 1;
