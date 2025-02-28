@@ -32,9 +32,14 @@ internal inline V2_F32 mouse_position() {
     return result;
 }
 
+internal inline void input_set_mouse_capture() {
+    g_input.capture_cursor = true;
+}
+
 internal void input_begin(OS_Handle window_handle, OS_Event_List *events) {
     V2_F32 window_dim = os_get_window_dim(window_handle);
     g_input.client_dim = v2_s32((s32)window_dim.x, (s32)window_dim.y);
+    g_input.capture_cursor = false;
 
     for (OS_Event *evt = events->first; evt; evt = evt->next) {
         bool pressed = false;
