@@ -233,7 +233,7 @@ void draw_map(V2_F32 map_dim) {
         int x1 = (int)((game_state->pos.x + 0.5f) * cell_w);
         int y0 = (int)((game_state->pos.y - 0.5f) * cell_h);
         int y1 = (int)((game_state->pos.y + 0.5f) * cell_h);
-        u32 color = 0xFF00FFFF;
+        u32 color = 0x00FFFFFF;
 
         for (int y = y0; y < y1; y++) {
             for (int x = x0; x < x1; x++) {
@@ -243,8 +243,6 @@ void draw_map(V2_F32 map_dim) {
     }
 }
 
-internal void update_player(Game_State *state) {
-}
 
 internal void update_game_world(Game_State *state) {
     input_set_mouse_capture();
@@ -645,8 +643,7 @@ internal void update_game_world(Game_State *state) {
         if (x1 >= w) x1 = (int)w - 1;
 
         for (int x = x0; x < x1; x++) {
-            int tex_x = (int)(256 * (x - (-entity_w / 2 + entity_screen_x)) * TEX_WIDTH / entity_w / 256);
-            if (xform_y > 0 && x > 0 && x < w && xform_y < z_buffer[x]) {
+            int tex_x = (int)(256 * (x - (-entity_w / 2 + entity_screen_x)) * TEX_WIDTH / entity_w / 256); if (xform_y > 0 && x > 0 && x < w && xform_y < z_buffer[x]) {
                 for (int y = y0; y < y1; y++) {
                     int d = (y - adjust_y) * 256 - (int)h * 128 + entity_h * 128;
                     int tex_y = ((d * TEX_HEIGHT) / entity_h) / 256;
