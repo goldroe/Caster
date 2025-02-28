@@ -188,6 +188,61 @@ internal bool raycast(V2_F32 pos, V2_F32 dir, Raycast_Result *res) {
     return hit;
 }
 
+void draw_map_cell(int x0, int y0, int cell_w, int cell_h, int tex) {
+    Texture texture = game_state->textures[tex];
+    int y1 = y0 + cell_h;
+    int x1 = x0 + cell_w;
+
+    f32 step_x = TEX_WIDTH  / (f32)cell_w;
+    f32 step_y = TEX_HEIGHT / (f32)cell_h;
+    f32 tex_y = 0;
+    f32 tex_x = 0;
+    for (int y = y0; y < y1; y++) {
+        tex_x = 0;
+        for (int x = x0; x < x1; x++) {
+            u32 color = ((u32 *)texture.bitmap)[(int)tex_y * TEX_WIDTH + (int)tex_x];
+            fill_pixel(&g_back_buffer, x, y, color);
+            tex_x += step_x;
+        }
+        tex_y += step_y;
+    }
+}
+
+void draw_map(V2_F32 map_dim) {
+    int cell_w = (int)(map_dim.x / MAP_WIDTH);
+    int cell_h = (int)(map_dim.y / MAP_HEIGHT);
+
+    if (cell_h < cell_w) {
+        cell_w = cell_h;
+    } else if (cell_w < cell_h) {
+        cell_h = cell_w;
+    }
+
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
+            int wall = world_map[y][x];
+            int tex = wall - 1;
+            if (wall) {
+                draw_map_cell(x * cell_w, y * cell_h, cell_w, cell_h, tex);
+            }
+        }
+    }
+
+    {
+        int x0 = (int)((game_state->pos.x - 0.5f) * cell_w);
+        int x1 = (int)((game_state->pos.x + 0.5f) * cell_w);
+        int y0 = (int)((game_state->pos.y - 0.5f) * cell_h);
+        int y1 = (int)((game_state->pos.y + 0.5f) * cell_h);
+        u32 color = 0x00FFFFFF;
+
+        for (int y = y0; y < y1; y++) {
+            for (int x = x0; x < x1; x++) {
+                fill_pixel(&g_back_buffer, x, y, color);
+            }
+        }
+    }
+}
+
 internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, f32 dt) {
     local_persist bool first_call = true;
     if (first_call) {
@@ -647,8 +702,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         if (x1 >= w) x1 = (int)w - 1;
 
         for (int x = x0; x < x1; x++) {
-            int tex_x = (int)(256 * (x - (-entity_w / 2 + entity_screen_x)) * TEX_WIDTH / entity_w / 256);
-            if (xform_y > 0 && x > 0 && x < w && xform_y < z_buffer[x]) {
+            int tex_x = (int)(256 * (x - (-entity_w / 2 + entity_screen_x)) * TEX_WIDTH / entity_w / 256); if (xform_y > 0 && x > 0 && x < w && xform_y < z_buffer[x]) {
                 for (int y = y0; y < y1; y++) {
                     int d = (y - adjust_y) * 256 - (int)h * 128 + entity_h * 128;
                     int tex_y = ((d * TEX_HEIGHT) / entity_h) / 256;
@@ -661,13 +715,15 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         }
     }
 
+    draw_map(window_dim);
+
     //@Note Draw backbuffer texture
     load_screen_buffer_texture(&g_back_buffer);
 
     draw_begin(window_handle);
     M4_F32 ortho = ortho_rh_zo(0.0f, window_dim.x, 0.0f, window_dim.y, -1.0f, 1.0f);
     draw_set_xform(ortho);
-    draw_quad(g_back_buffer.tex, make_rect(0.0f, 0.0f, SCREEN_WIDTH, SCREEN_HEIGHT), make_rect(0, 0, 1, 1));
+    draw_quad(g_back_buffer.tex, make_rect(0.0f, 0.0f, window_dim.x, window_dim.y), make_rect(0, 0, 1, 1));
 
     M4_F32 ortho_text = ortho_rh_zo(0.0f, window_dim.x, window_dim.y, 0.0f, -1.0f, 1.0f);
     draw_set_xform(ortho_text);
