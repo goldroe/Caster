@@ -65,12 +65,21 @@ struct Entity {
     }
 };
 
+enum Game_Mode {
+    GAME_MODE_MENU,
+    GAME_MODE_PAUSE,
+    GAME_MODE_WORLD,
+};
+
 struct Game_State {
+    f32 delta_t;
+
     V2_F32 pos;
     V2_F32 dir;
-
     f64 plane_x;
     f64 plane_y;
+
+    Game_Mode mode;
 
     Auto_Array<Texture> textures;
     Auto_Array<Entity*> entities;

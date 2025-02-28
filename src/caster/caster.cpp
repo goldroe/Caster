@@ -188,76 +188,76 @@ internal bool raycast(V2_F32 pos, V2_F32 dir, Raycast_Result *res) {
     return hit;
 }
 
-internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, f32 dt) {
-    local_persist bool first_call = true;
-    if (first_call) {
-        first_call = false;
+void draw_map_cell(int x0, int y0, int cell_w, int cell_h, int tex) {
+    Texture texture = game_state->textures[tex];
+    int y1 = y0 + cell_h;
+    int x1 = x0 + cell_w;
 
-        game_state = new Game_State();
-        game_state->pos = v2_f32(22.0f, 1.5f);
-        game_state->dir = v2_f32(-1.0f, 0.0f);
-        game_state->plane_x = 0;
-        game_state->plane_y = 0.66;
+    f32 step_x = TEX_WIDTH  / (f32)cell_w;
+    f32 step_y = TEX_HEIGHT / (f32)cell_h;
+    f32 tex_y = 0;
+    f32 tex_x = 0;
+    for (int y = y0; y < y1; y++) {
+        tex_x = 0;
+        for (int x = x0; x < x1; x++) {
+            u32 color = ((u32 *)texture.bitmap)[(int)tex_y * TEX_WIDTH + (int)tex_x];
+            fill_pixel(&g_back_buffer, x, y, color);
+            tex_x += step_x;
+        }
+        tex_y += step_y;
+    }
+}
 
-        load_texture("data/wolftex/eagle.png");
-        load_texture("data/wolftex/redbrick.png");
-        load_texture("data/wolftex/purplestone.png");
-        load_texture("data/wolftex/greystone.png");
-        load_texture("data/wolftex/bluestone.png");
-        load_texture("data/wolftex/mossy.png");
-        load_texture("data/wolftex/wood.png");
-        load_texture("data/wolftex/colorstone.png");
-        load_texture("data/wolftex/barrel.png");
-        load_texture("data/wolftex/pillar.png");
-        load_texture("data/wolftex/greenlight.png");
-        load_texture("data/mob.png");
-        load_texture("data/ball.png");
-        load_texture("data/door.png");
+void draw_map(V2_F32 map_dim) {
+    int cell_w = (int)(map_dim.x / MAP_WIDTH);
+    int cell_h = (int)(map_dim.y / MAP_HEIGHT);
 
-        update_screen_buffer(&g_back_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
+    if (cell_h < cell_w) {
+        cell_w = cell_h;
+    } else if (cell_w < cell_h) {
+        cell_h = cell_w;
+    }
 
-        Arena *temp = make_arena(get_malloc_allocator());
-        default_font = load_font(temp, str8_lit("data/fonts/consolas.ttf"), 20);
-
-        {
-            make_entity(E_OBJ, 20.5, 11.5, 10, 1, 1, 0); //green light in front of playerstart
-            
-            // lights
-            make_entity(E_OBJ, 18.5, 1.5, 8, 1, 1, 0);
-            make_entity(E_OBJ, 15.5, 1.5, 8, 1, 1, 0);
-            make_entity(E_OBJ, 16.0, 1.8, 8, 1, 1, 0);
-            make_entity(E_OBJ, 16.2, 1.2, 8, 1, 1, 0);
-            make_entity(E_OBJ, 18.5, 5.5, 8, 2, 2, 128);
-            make_entity(E_OBJ, 15.5, 4.5, 8, 2, 2, 128);
-            make_entity(E_OBJ, 19.0, 4.1, 8, 2, 2, 128);
-            make_entity(E_OBJ, 14.5, 4.8, 8, 2, 2, 128);
-
-            // barrels
-            make_entity(E_WALL, 18.5, 4.5,  10, 1, 1, 0);
-            make_entity(E_WALL, 10.0, 4.5,  10, 1, 1, 0);
-            make_entity(E_WALL, 10.0, 12.5, 10, 1, 1, 0);
-            make_entity(E_WALL, 3.5,  6.5,  10, 1, 1, 0);
-            make_entity(E_WALL, 3.5,  20.5, 10, 1, 1, 0);
-            make_entity(E_WALL, 3.5,  14.5, 10, 1, 1, 0);
-            make_entity(E_WALL, 14.5, 20.5, 10, 1, 1, 0);
-
-            // pillar
-            make_entity(E_OBJ, 18.5, 10.5,  9, 1, 1, 0);
-            make_entity(E_OBJ, 18.5, 11.5,  9, 1, 1, 0);
-            make_entity(E_OBJ, 18.5, 12.5,  9, 1, 1, 0);
-            //make_entity(E_MOB, 17.0, 3.0,  11, 1, 1, 0);
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
+            int wall = world_map[y][x];
+            int tex = wall - 1;
+            if (wall) {
+                draw_map_cell(x * cell_w, y * cell_h, cell_w, cell_h, tex);
+            }
         }
     }
 
-    V2_F32 window_dim = os_get_window_dim(window_handle);
+    {
+        int x0 = (int)((game_state->pos.x - 0.5f) * cell_w);
+        int x1 = (int)((game_state->pos.x + 0.5f) * cell_w);
+        int y0 = (int)((game_state->pos.y - 0.5f) * cell_h);
+        int y1 = (int)((game_state->pos.y + 0.5f) * cell_h);
+        u32 color = 0xFF00FFFF;
 
-    input_begin(window_handle, events);
+        for (int y = y0; y < y1; y++) {
+            for (int x = x0; x < x1; x++) {
+                fill_pixel(&g_back_buffer, x, y, color);
+            }
+        }
+    }
+}
 
-    for (int i = 0; i < game_state->entities.count; i++) {
-        Entity *e = game_state->entities[i];
+internal void update_player(Game_State *state) {
+}
+
+internal void update_game_world(Game_State *state) {
+    input_set_mouse_capture();
+
+    if (key_pressed(OS_KEY_ESCAPE)) {
+        state->mode = GAME_MODE_PAUSE;
+    }
+
+    for (int i = 0; i < state->entities.count; i++) {
+        Entity *e = state->entities[i];
         if (e->to_be_destroyed) {
             entity_free(e);
-            game_state->entities.remove(i);
+            state->entities.remove(i);
             i -= 1;
         }
     }
@@ -271,10 +271,10 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         if (key_down(OS_KEY_PERIOD)) {
             mouse_dx = 10.0;
         }
-        f32 rot_speed = -0.125f * mouse_dx * dt;
-        f64 plane_x = game_state->plane_x;
-        f64 plane_y = game_state->plane_y;
-        V2_F32 dir = game_state->dir;
+        f32 rot_speed = -0.125f * mouse_dx * state->delta_t;
+        f64 plane_x = state->plane_x;
+        f64 plane_y = state->plane_y;
+        V2_F32 dir = state->dir;
 
         if (mouse_dx != 0) {
             f32 old_dir_x = dir.x;
@@ -285,15 +285,15 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
             plane_y = old_plane_x * sinf(rot_speed) + plane_y * cosf(rot_speed);
         }
 
-        game_state->dir = dir;
-        game_state->plane_x = plane_x;
-        game_state->plane_y = plane_y;
+        state->dir = dir;
+        state->plane_x = plane_x;
+        state->plane_y = plane_y;
     }
 
     //@Note Player movement
     {
         //@Note Get camera vectors
-        V2_F32 dir = game_state->dir;
+        V2_F32 dir = state->dir;
         V3_F32 up = v3_f32(0.0f, 0.0f, 1.0f);
         V3_F32 side = normalize_v3_f32(cross_v3_f32(v3_f32(dir.x, dir.y, 0), up));
         V2_F32 right = v2_f32(side.x, side.y);
@@ -316,8 +316,8 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
 
         f32 speed = 4.0f;
         V2_F32 direction = normalize_v2_f32(dir * forward_dt + right * right_dt);
-        V2_F32 pos = game_state->pos;
-        V2_F32 new_pos = pos + speed * direction * dt;
+        V2_F32 pos = state->pos;
+        V2_F32 new_pos = pos + speed * direction * state->delta_t;
 
         // Collision
         int map_x = (int)new_pos.x;
@@ -337,7 +337,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
             //Raycast_Result ray;
             //raycast(pos, dir, &ray);
         } else {
-            game_state->pos = new_pos;
+            state->pos = new_pos;
         }
     }
 
@@ -349,30 +349,30 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
             }
 
             if (door->state == STATE_OPENING) {
-                door->delta_t += dt;
+                door->delta_t += state->delta_t;
             }
         }
     }
 
     //@Note Update entities
-    for (int i = 0; i < game_state->entities.count; i++) {
-        Entity *e = game_state->entities[i];
+    for (int i = 0; i < state->entities.count; i++) {
+        Entity *e = state->entities[i];
         switch (e->kind) {
         case E_MOB:
         {
-            V2_F32 dir = normalize(v2_f32(game_state->pos.x - (f32)e->x, game_state->pos.y - (f32)e->y));
+            V2_F32 dir = normalize(v2_f32(state->pos.x - (f32)e->x, state->pos.y - (f32)e->y));
             f32 speed = 2.0f;
-            e->x += dir.x * speed * dt;
-            e->y += dir.y * speed * dt;
+            e->x += dir.x * speed * state->delta_t;
+            e->y += dir.y * speed * state->delta_t;
             break;
         }
         case E_BALL:
         {
             f32 speed = 10.0f;
-            e->x += e->dir_x * speed * dt;
-            e->y += e->dir_y * speed * dt;
-            for (int i = 0; i < game_state->entities.count; i++) {
-                Entity *hit = game_state->entities[i];
+            e->x += e->dir_x * speed * state->delta_t;
+            e->y += e->dir_y * speed * state->delta_t;
+            for (int i = 0; i < state->entities.count; i++) {
+                Entity *hit = state->entities[i];
                 if (hit == e) continue;
                 if (hit->is_collidable() && 
                     e->x - 0.5 < hit->x + 0.5 && e->x + 0.5 > hit->x - 0.5 && 
@@ -385,10 +385,10 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         }
     }
 
-    if (key_pressed(OS_KEY_SPACE)) {
-        Entity *ball = make_entity(E_BALL, game_state->pos.x, game_state->pos.y, 12, 1, 1, 0);
-        ball->dir_x = game_state->dir.x;
-        ball->dir_y = game_state->dir.y;
+    if (key_pressed(OS_KEY_LEFTMOUSE)) {
+        Entity *ball = make_entity(E_BALL, state->pos.x, state->pos.y, 12, 1, 1, 0);
+        ball->dir_x = state->dir.x;
+        ball->dir_y = state->dir.y;
         ball->x += ball->dir_x * 0.5f;
         ball->y += ball->dir_y * 0.5f;
     }
@@ -396,7 +396,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     //@Note Open door
     if (key_pressed(OS_KEY_E)) {
         Raycast_Result ray;
-        if (raycast(game_state->pos, game_state->dir, &ray)) {
+        if (raycast(state->pos, state->dir, &ray)) {
             int wall = world_map[ray.dest_y][ray.dest_x];
             // door num
             if (wall == 14 && ray.dist < 1.0f) {
@@ -408,16 +408,14 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         }
     }
 
-    clear_buffer(&g_back_buffer, 1, 0, 1, 1);
-
     f64 w = (f64)SCREEN_WIDTH;
     f64 h = (f64)SCREEN_HEIGHT;
-    f64 plane_x = game_state->plane_x;
-    f64 plane_y = game_state->plane_y;
-    f64 pos_x = (f64)game_state->pos.x;
-    f64 pos_y = (f64)game_state->pos.y;
+    f64 plane_x = state->plane_x;
+    f64 plane_y = state->plane_y;
+    f64 pos_x = (f64)state->pos.x;
+    f64 pos_y = (f64)state->pos.y;
 
-    V2_F32 dir = game_state->dir;
+    V2_F32 dir = state->dir;
 
     //@Note Floor raycasting
     for (int y = (int)h / 2 + 1; y < h; y++) {
@@ -447,8 +445,8 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
 
             floor_pos += floor_step;
 
-            Texture *floor_texture = &game_state->textures[3];
-            Texture *ceiling_texture = &game_state->textures[6];
+            Texture *floor_texture = &state->textures[3];
+            Texture *ceiling_texture = &state->textures[6];
 
             RGBA color;
             color.v = ((u32 *)floor_texture->bitmap)[tex_y * TEX_WIDTH + tex_x];
@@ -461,13 +459,13 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
 
     //@Note Wall raycasting
     for (int x = 0; x < w; x++) {
-        int map_x = (int)game_state->pos.x;
-        int map_y = (int)game_state->pos.y;
+        int map_x = (int)state->pos.x;
+        int map_y = (int)state->pos.y;
 
         f64 camera_x = 2 * x / w - 1; // -1 to 1 from 0 to w
 
-        f64 raydir_x = (f64)game_state->dir.x + plane_x * camera_x;
-        f64 raydir_y = (f64)game_state->dir.y + plane_y * camera_x;
+        f64 raydir_x = (f64)state->dir.x + plane_x * camera_x;
+        f64 raydir_y = (f64)state->dir.y + plane_y * camera_x;
 
         f64 dx = (raydir_x != 0.0) ? Abs(1.0 / raydir_x) : 10000000.0;
         f64 dy = (raydir_y != 0.0) ? Abs(1.0 / raydir_y) : 10000000.0;
@@ -551,7 +549,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
 
         int tex_idx = wall - 1;
 
-        Texture *texture = &game_state->textures[tex_idx];
+        Texture *texture = &state->textures[tex_idx];
 
         f64 wall_x;
         if (side == 0) wall_x = pos_y + perp_wall_dist * raydir_y;
@@ -586,27 +584,27 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     }
 
     //@Note Sort entities
-    for (int i = 0; i < game_state->entities.count; i++) {
-        Entity *entity = game_state->entities[i];
+    for (int i = 0; i < state->entities.count; i++) {
+        Entity *entity = state->entities[i];
         f64 dist = ((pos_x - entity->x) * (pos_x - entity->x) + (pos_y - entity->y) * (pos_y - entity->y));
         int j = i - 1;
         while (j >= 0) {
-            Entity *ej = game_state->entities[j];
+            Entity *ej = state->entities[j];
             f64 distj = (pos_x - ej->x) * (pos_x - ej->x) + (pos_y - ej->y) * (pos_y - ej->y);
             if (distj > dist) {
                 break;
             }
 
-            game_state->entities[j + 1] = game_state->entities[j];
+            state->entities[j + 1] = state->entities[j];
             j = j - 1;
         }
 
-        game_state->entities[j + 1] = entity;
+        state->entities[j + 1] = entity;
     }
 
     //@Note entity raycasting
-    for (int entity_idx = 0; entity_idx < game_state->entities.count; entity_idx++) {
-        Entity *e = game_state->entities[entity_idx];
+    for (int entity_idx = 0; entity_idx < state->entities.count; entity_idx++) {
+        Entity *e = state->entities[entity_idx];
         f64 entity_x = e->x - pos_x;
         f64 entity_y = e->y - pos_y;
 
@@ -653,12 +651,98 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
                     int d = (y - adjust_y) * 256 - (int)h * 128 + entity_h * 128;
                     int tex_y = ((d * TEX_HEIGHT) / entity_h) / 256;
 
-                    Texture texture = game_state->textures[e->tex];
+                    Texture texture = state->textures[e->tex];
                     u32 color = ((u32 *)texture.bitmap)[tex_y * TEX_WIDTH + tex_x];
                     if ((color & 0x00FFFFFF) != 0) fill_pixel(&g_back_buffer, x, y, color);
                 }
             }
         }
+    }
+}
+
+internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, f32 delta_t) {
+    local_persist bool first_call = true;
+    if (first_call) {
+        first_call = false;
+
+        game_state = new Game_State();
+        game_state->mode = GAME_MODE_WORLD;
+        game_state->pos = v2_f32(22.0f, 1.5f);
+        game_state->dir = v2_f32(-1.0f, 0.0f);
+        game_state->plane_x = 0;
+        game_state->plane_y = 0.66;
+
+        load_texture("data/wolftex/eagle.png");
+        load_texture("data/wolftex/redbrick.png");
+        load_texture("data/wolftex/purplestone.png");
+        load_texture("data/wolftex/greystone.png");
+        load_texture("data/wolftex/bluestone.png");
+        load_texture("data/wolftex/mossy.png");
+        load_texture("data/wolftex/wood.png");
+        load_texture("data/wolftex/colorstone.png");
+        load_texture("data/wolftex/barrel.png");
+        load_texture("data/wolftex/pillar.png");
+        load_texture("data/wolftex/greenlight.png");
+        load_texture("data/mob.png");
+        load_texture("data/ball.png");
+        load_texture("data/door.png");
+
+        update_screen_buffer(&g_back_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+        Arena *temp = make_arena(get_malloc_allocator());
+        default_font = load_font(temp, str8_lit("data/fonts/consolas.ttf"), 20);
+
+        {
+            make_entity(E_OBJ, 20.5, 11.5, 10, 1, 1, 0); //green light in front of playerstart
+            
+            // lights
+            make_entity(E_OBJ, 18.5, 1.5, 8, 1, 1, 0);
+            make_entity(E_OBJ, 15.5, 1.5, 8, 1, 1, 0);
+            make_entity(E_OBJ, 16.0, 1.8, 8, 1, 1, 0);
+            make_entity(E_OBJ, 16.2, 1.2, 8, 1, 1, 0);
+            make_entity(E_OBJ, 18.5, 5.5, 8, 2, 2, 128);
+            make_entity(E_OBJ, 15.5, 4.5, 8, 2, 2, 128);
+            make_entity(E_OBJ, 19.0, 4.1, 8, 2, 2, 128);
+            make_entity(E_OBJ, 14.5, 4.8, 8, 2, 2, 128);
+
+            // barrels
+            make_entity(E_WALL, 18.5, 4.5,  10, 1, 1, 0);
+            make_entity(E_WALL, 10.0, 4.5,  10, 1, 1, 0);
+            make_entity(E_WALL, 10.0, 12.5, 10, 1, 1, 0);
+            make_entity(E_WALL, 3.5,  6.5,  10, 1, 1, 0);
+            make_entity(E_WALL, 3.5,  20.5, 10, 1, 1, 0);
+            make_entity(E_WALL, 3.5,  14.5, 10, 1, 1, 0);
+            make_entity(E_WALL, 14.5, 20.5, 10, 1, 1, 0);
+
+            // pillar
+            make_entity(E_OBJ, 18.5, 10.5,  9, 1, 1, 0);
+            make_entity(E_OBJ, 18.5, 11.5,  9, 1, 1, 0);
+            make_entity(E_OBJ, 18.5, 12.5,  9, 1, 1, 0);
+            make_entity(E_MOB, 17.0, 3.0,  11, 1, 1, 0);
+        }
+    }
+
+    game_state->delta_t = delta_t;
+
+    V2_F32 window_dim = os_get_window_dim(window_handle);
+
+    input_begin(window_handle, events);
+
+    clear_buffer(&g_back_buffer, 1, 0, 1, 1);
+
+    switch (game_state->mode) {
+        case GAME_MODE_MENU:
+            break;
+        case GAME_MODE_PAUSE:
+            clear_buffer(&g_back_buffer, 0, 0, 0, 1);
+            draw_map(window_dim);
+            if (key_pressed(OS_KEY_ESCAPE)) {
+                game_state->mode = GAME_MODE_WORLD;
+            }
+            break;
+        case GAME_MODE_WORLD:
+            update_game_world(game_state);
+            break;
     }
 
     //@Note Draw backbuffer texture
@@ -667,7 +751,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     draw_begin(window_handle);
     M4_F32 ortho = ortho_rh_zo(0.0f, window_dim.x, 0.0f, window_dim.y, -1.0f, 1.0f);
     draw_set_xform(ortho);
-    draw_quad(g_back_buffer.tex, make_rect(0.0f, 0.0f, SCREEN_WIDTH, SCREEN_HEIGHT), make_rect(0, 0, 1, 1));
+    draw_quad(g_back_buffer.tex, make_rect(0.0f, 0.0f, window_dim.x, window_dim.y), make_rect(0, 0, 1, 1));
 
     M4_F32 ortho_text = ortho_rh_zo(0.0f, window_dim.x, window_dim.y, 0.0f, -1.0f, 1.0f);
     draw_set_xform(ortho_text);
@@ -679,8 +763,6 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
     r_d3d11_state->swap_chain->Present(1, 0);
 
     draw_end();
-
-    g_input.capture_cursor = true;
 
     input_end(window_handle);
 }
