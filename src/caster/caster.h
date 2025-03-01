@@ -1,6 +1,23 @@
 #ifndef CASTER_H
 #define CASTER_H
 
+struct A_Star_Cell {
+    A_Star_Cell *parent;
+    A_Star_Cell *next;
+    int x;
+    int y;
+
+    int f;
+    int g;
+    int h;
+};
+
+struct A_Star {
+    int dim_x;
+    int dim_y;
+    A_Star_Cell *cells;
+};
+
 struct Door {
     int state;
     f32 delta_t;
@@ -83,6 +100,8 @@ struct Game_State {
 
     Auto_Array<Texture> textures;
     Auto_Array<Entity*> entities;
+
+    A_Star a_star;
 };
 
 #endif // CASTER_H

@@ -1,3 +1,4 @@
+#include <float.h>
 
 global Back_Buffer g_back_buffer;
 global Game_State *game_state;
@@ -75,6 +76,99 @@ internal Entity *make_entity(int kind, f64 x, f64 y, int tex, int u, int v, f32 
     e->v_adjust = off;
     game_state->entities.push(e);
     return e;
+}
+
+global int a_star_adj[16] = {
+    -1,0,  1,0,  0,1,  0,-1,  -1,1,  1,1,  -1,-1,  1,-1 
+};
+
+internal bool a_star_search(A_Star_Cell *start, A_Star_Cell *goal) {
+    A_Star *a_star = &game_state->a_star;
+
+    for (int y = 0; y < a_star->dim_y; y++) {
+        for (int x = 0; x < a_star->dim_x; x++) {
+            A_Star_Cell *cell = &a_star->cells[y * a_star->dim_x + x];
+            cell->parent = NULL;
+            cell->next = NULL;
+            cell->f = INT_MAX;
+            cell->g = INT_MAX;
+            cell->h = 0;
+        }
+    }
+
+    bool success = false;
+    Auto_Array<A_Star_Cell*> open;
+
+    open.push(start);
+    start->f = 0;
+    start->g = 0;
+
+    while (!open.is_empty()) {
+        int min_idx = 0;
+        int min = INT_MAX;
+        for (int i = 0; i < open.count; i++) {
+            A_Star_Cell *o = open[i];
+            if (o->f < min) {
+                min_idx = i;
+                min = o->f;
+            }
+        }
+        A_Star_Cell *cell = open[min_idx];
+
+        if (cell == goal) {
+            success = true;
+            break;
+        }
+
+        open.remove(min_idx);
+
+        for (int i = 0; i < 8; i++) {
+            int x = a_star_adj[i * 2], y = a_star_adj[i * 2 + 1];
+            int cx = cell->x + x;
+            int cy = cell->y + y;
+
+            if (cx < 0 || cy < 0 || cx >= a_star->dim_x || cy >= a_star->dim_y) continue;
+
+            A_Star_Cell *neighbor = &a_star->cells[cy * a_star->dim_x + cx];
+
+            int dist = Abs(x) + Abs(y);
+            int g = cell->g + dist;
+            int f = Abs(cx - goal->x) + Abs(cy - goal->y);
+            int h = dist;
+
+            int blocked = false;
+            int wall = world_map[cy][cx];
+            if (wall != 0) {
+                blocked = true;
+                if (wall == 14) {
+                    Door door = door_map[cy][cx];
+                    if (door.state == STATE_OPEN) {
+                        blocked = false;
+                    }
+                }
+            }
+
+            if (!blocked && f < neighbor->f) {
+                neighbor->parent = cell;
+                neighbor->f = f;
+                neighbor->g = g;
+                neighbor->h = h;
+
+                bool in = false;
+                for (int j = 0; j < open.count; j++) {
+                    if (open[j] == neighbor) in = true;
+                }
+                if (!in) {
+                    open.push(neighbor);
+                }
+            }
+
+
+        }
+    }
+
+    open.clear();
+    return success;
 }
 
 internal void update_screen_buffer(Back_Buffer *buffer, int width, int height) {
@@ -243,6 +337,38 @@ void draw_map(V2_F32 map_dim) {
     }
 }
 
+internal void update_mob(Entity *e) {
+    int wall_x = (int)floor(e->x);
+    int wall_y = (int)floor(e->y);
+    A_Star_Cell *start = &game_state->a_star.cells[wall_y * game_state->a_star.dim_x + wall_x];
+
+    int player_x = (int)floorf(game_state->pos.x);
+    int player_y = (int)floorf(game_state->pos.y);
+    A_Star_Cell *goal = &game_state->a_star.cells[player_y * game_state->a_star.dim_x + player_x];
+
+    if (a_star_search(start, goal)) {
+        for (A_Star_Cell *cell = goal; cell; cell = cell->parent) {
+            A_Star_Cell *parent = cell->parent;
+            if (parent) {
+                parent->next = cell; 
+            }
+        }
+
+        A_Star_Cell *next = start->next;
+        if (next) {
+            f32 speed = 2.0f;
+            V2_F32 dir = normalize(v2_f32((f32)(next->x + 0.5f - e->x), (f32)(next->y + 0.5f - e->y)));
+            f64 new_x = e->x + dir.x * speed * game_state->delta_t;
+            f64 new_y = e->y + dir.y * speed * game_state->delta_t;
+            e->x = new_x;
+            e->y = new_y;
+        }
+    }
+
+    //V2_F32 dir = normalize(v2_f32(game_state->pos.x - (f32)e->x, game_state->pos.y - (f32)e->y));
+    //e->x += dir.x * speed * game_state->delta_t;
+    //e->y += dir.y * speed * game_state->delta_t;
+}
 
 internal void update_game_world(Game_State *state) {
     input_set_mouse_capture();
@@ -357,13 +483,8 @@ internal void update_game_world(Game_State *state) {
         Entity *e = state->entities[i];
         switch (e->kind) {
         case E_MOB:
-        {
-            V2_F32 dir = normalize(v2_f32(state->pos.x - (f32)e->x, state->pos.y - (f32)e->y));
-            f32 speed = 2.0f;
-            e->x += dir.x * speed * state->delta_t;
-            e->y += dir.y * speed * state->delta_t;
+            update_mob(e);
             break;
-        }
         case E_BALL:
         {
             f32 speed = 10.0f;
@@ -401,6 +522,9 @@ internal void update_game_world(Game_State *state) {
                 Door *door = &door_map[ray.dest_y][ray.dest_x];
                 if (door->state == STATE_CLOSE) {
                     door->state = STATE_OPENING;
+                } else if (door->state == STATE_OPEN) {
+                    door->state = STATE_CLOSE;
+                    door->delta_t = 0.0f;
                 }
             }
         }
@@ -664,7 +788,8 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
 
         game_state = new Game_State();
         game_state->mode = GAME_MODE_WORLD;
-        game_state->pos = v2_f32(22.0f, 1.5f);
+        //game_state->pos = v2_f32(22.0f, 1.5f);
+        game_state->pos = v2_f32(5.0f, 11.0f);
         game_state->dir = v2_f32(-1.0f, 0.0f);
         game_state->plane_x = 0;
         game_state->plane_y = 0.66;
@@ -716,6 +841,18 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
             make_entity(E_OBJ, 18.5, 11.5,  9, 1, 1, 0);
             make_entity(E_OBJ, 18.5, 12.5,  9, 1, 1, 0);
             make_entity(E_MOB, 17.0, 3.0,  11, 1, 1, 0);
+        }
+
+        A_Star *a_star = &game_state->a_star;
+        a_star->dim_x = MAP_WIDTH;
+        a_star->dim_y = MAP_HEIGHT;
+        a_star->cells = (A_Star_Cell *)calloc(a_star->dim_y * a_star->dim_x, sizeof(A_Star_Cell));
+        for (int y = 0; y < a_star->dim_y; y++) {
+            for (int x = 0; x < a_star->dim_x; x++) {
+                A_Star_Cell *cell = &a_star->cells[y * a_star->dim_x + x];
+                cell->x = x;
+                cell->y = y;
+            }
         }
     }
 
