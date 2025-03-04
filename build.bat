@@ -6,9 +6,9 @@ if [%1]==[] (
 )
 
 if not exist build mkdir build
-set WARNING_FLAGS=/W4 /wd4100 /wd4101 /wd4189 /wd4201 /wd4456 /wd4505 /wd4706
+set WARNING_FLAGS=/W4 /wd4100 /wd4101 /wd4189 /wd4201 /wd4456 /wd4505 /wd4706 /wd4127
 set INCLUDES=/Isrc\ /Iext\ /Iext\freetype\include\
-set COMMON_COMPILER_FLAGS=/nologo /FC /EHsc /Fdbuild\ /Fobuild\ %WARNING_FLAGS% %INCLUDES%
+set COMMON_COMPILER_FLAGS=/nologo /FC /EHsc /Fdbuild\ /Fobuild\ %WARNING_FLAGS% %INCLUDES% /std:c++17
 
 set COMPILER_FLAGS=%COMMON_COMPILER_FLAGS%
 if %MODE%==release (
