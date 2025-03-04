@@ -7,6 +7,9 @@
 #include <ft2build.h>
 #include <freetype/freetype.h>
 
+#include <simdjson\simdjson.h>
+#include <simdjson\simdjson.cpp>
+
 #include "base/base_core.h"
 #include "base/base_arena.h"
 #include "base/base_math.h"
@@ -49,6 +52,9 @@ int main() {
     timeBeginPeriod(1);
 
     win32_event_arena = make_arena(get_malloc_allocator());
+
+    permanent_arena = arena_alloc(get_virtual_allocator(), MB(2));
+    temporary_arena = arena_alloc(get_virtual_allocator(), MB(2));
 
     char *class_name = "CASTER_WINDOW_CLASS";
     HINSTANCE hinstance = GetModuleHandle(NULL);

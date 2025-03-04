@@ -39,17 +39,61 @@ struct Back_Buffer {
     R_Handle tex;
 };
 
+enum {
+    DOOR_CLOSE,
+    DOOR_OPENING,
+    DOOR_OPEN
+};
+
+enum {
+    STATE_DEFAULT,
+    STATE_IDLE,
+    STATE_RUN,
+    STATE_DEAD,
+    STATE_COUNT
+};
+
 struct Texture {
     int width;
     int height;
     u8 *bitmap;
-    R_Handle tex;
 };
 
-enum {
-    STATE_CLOSE,
-    STATE_OPENING,
-    STATE_OPEN
+struct Anim {
+    int u_scale;
+    int v_scale;
+    int v_adjust;
+    Auto_Array<Texture> textures;
+};
+
+enum Asset_Kind {
+    ASSET_NIL,
+    ASSET_TEXTURE,
+    ASSET_ANIMATION,
+};
+
+struct Asset {
+    const char *name;
+    u64 hash;
+    Asset *next;
+    Asset *prev;
+    Asset_Kind kind;
+    union {
+        Texture texture;
+        Anim anim;
+    };
+};
+
+struct Asset_Bucket {
+    Asset *first;
+    Asset *last;
+};
+
+struct Assets {
+    Asset_Bucket *texture_table;
+    int texture_table_size;
+    Asset_Bucket *anim_table;
+    int anim_table_size;
 };
 
 enum {
@@ -66,10 +110,18 @@ struct Entity {
     f64 x;
     f64 y;
 
+    f64 new_x;
+    f64 new_y;
+
     f64 dir_x;
     f64 dir_y;
 
-    // sprite
+    int state;
+
+    Anim *anim;
+    f32 anim_t;
+    int anim_frame;
+
     int tex;
     int u_scale;
     int v_scale;
@@ -102,6 +154,8 @@ struct Game_State {
     Auto_Array<Entity*> entities;
 
     A_Star a_star;
+
+    bool draw_map;
 };
 
 #endif // CASTER_H

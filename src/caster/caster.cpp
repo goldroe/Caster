@@ -1,5 +1,10 @@
 #include <float.h>
 
+using namespace simdjson;
+
+global Arena *permanent_arena;
+global Arena *temporary_arena;
+
 global Back_Buffer g_back_buffer;
 global Game_State *game_state;
 
@@ -43,6 +48,8 @@ global u8 world_map[MAP_HEIGHT][MAP_WIDTH] = {
 global Door door_map[MAP_HEIGHT][MAP_WIDTH];
 
 global f64 z_buffer[SCREEN_WIDTH];
+
+global Assets *g_assets;
 
 internal inline f32 ease_in_circ(f32 x) {
     return 1.0f - sqrtf(1.0f - powf(x, 2));
@@ -142,7 +149,7 @@ internal bool a_star_search(A_Star_Cell *start, A_Star_Cell *goal) {
                 blocked = true;
                 if (wall == 14) {
                     Door door = door_map[cy][cx];
-                    if (door.state == STATE_OPEN) {
+                    if (door.state == DOOR_OPEN) {
                         blocked = false;
                     }
                 }
@@ -162,8 +169,6 @@ internal bool a_star_search(A_Star_Cell *start, A_Star_Cell *goal) {
                     open.push(neighbor);
                 }
             }
-
-
         }
     }
 
@@ -217,13 +222,133 @@ internal inline void fill_pixel(Back_Buffer *buffer, int x, int y, u32 color) {
     ((u32 *)buffer->pixels)[y * buffer->width + x] = color;
 }
 
-internal void load_texture(const char *file_name) {
+internal u64 djb2_hash(const char *str) {
+    u64 hash = 5381;
+    int c;
+    while (c = *str++)
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+    return hash;
+}
+
+internal u64 djb2_hash(String8 str) {
+    u64 hash = 5381;
+    for (int i = 0; i < str.count; i++) {
+        int c = str.data[i];
+        hash = ((hash << 5) + hash) + c;
+    }
+    return hash;
+}
+
+internal Asset *asset_alloc() {
+    Asset *asset = push_array(permanent_arena, Asset, 1);
+    return asset; 
+}
+
+internal void anim_push(Asset *asset) {
+    int index = asset->hash % g_assets->anim_table_size;
+    Asset_Bucket *hash_bucket = g_assets->anim_table + index;
+    DLLPushFront(hash_bucket->first, hash_bucket->last, asset, next, prev);
+}
+
+internal void texture_push(Asset *asset) {
+    int index = asset->hash % g_assets->texture_table_size;
+    Asset_Bucket *hash_bucket = g_assets->texture_table + index;
+    DLLPushFront(hash_bucket->first, hash_bucket->last, asset, next, prev);
+}
+
+internal void asset_load_texture(const char *file_name) {
     Texture texture = {};
     int n;
     texture.bitmap = (u8 *)stbi_load(file_name, &texture.width, &texture.height, &n, 4);
-    texture.tex = d3d11_create_texture(R_Tex2DFormat_R8G8B8A8, {texture.width, texture.height}, texture.bitmap);
     game_state->textures.push(texture);
+
+    Asset *asset = asset_alloc();
+    asset->hash = djb2_hash(file_name);
+    asset->kind = ASSET_TEXTURE;
+    asset->texture = texture;
+    texture_push(asset);
 }
+
+internal Asset *asset_load_animation(String8 name) {
+    Asset *asset = asset_alloc();
+    asset->kind = ASSET_ANIMATION;
+    String8 json_file = str8_pushf(permanent_arena, "%S.json", name);
+
+    ondemand::parser parser;
+    simdjson::padded_string json = simdjson::padded_string::load((const char *)json_file.data);
+    ondemand::document document = parser.iterate(json);
+    ondemand::object root_object = document.get_object();
+
+    auto frames = root_object.find_field("frames").get_object();
+
+    ondemand::object meta_object = root_object.find_field("meta");
+    std::string_view image_name = meta_object.find_field("image").get_string();
+    char *file_name = push_array(temporary_arena, char, image_name.length() + 1);
+    strncpy_s(file_name, image_name.length() + 1, image_name.data(), image_name.length());
+    file_name[image_name.length()] = 0;
+
+    int x, y, n;
+    u8 *bitmap = (u8 *)stbi_load(file_name, &x, &y, &n, 4);
+
+    size_t frame_count = frames.count_fields();
+    asset->anim.textures.reserve(frame_count);
+
+    for (ondemand::field frame_field : frames) {
+        ondemand::object frame = frame_field.value();
+        auto frame_info = frame.find_field("frame");
+        u64 x0 = u64(frame_info.find_field("x"));
+        u64 y0 = u64(frame_info.find_field("y"));
+        u64 w = u64(frame_info.find_field("w"));
+        u64 h = u64(frame_info.find_field("h"));
+        u64 y1 = y0 + h;
+
+        int bpp = 4;
+        Texture texture = {};
+        texture.width = (int)w;
+        texture.height = (int)w;
+
+        //@Note Fill spritesheet texture
+        texture.bitmap = (u8 *)calloc(texture.width * texture.height, bpp);
+        for (int y = 0; y < h; y++) {
+            MemoryCopy(texture.bitmap + y * texture.width * bpp, bitmap + (x0 + (y + y0) * x) * bpp, texture.width * bpp);
+        }
+        asset->anim.textures.push(texture);
+    }
+
+    asset->hash = djb2_hash(name);
+    asset->name = file_name;
+    anim_push(asset);
+    return asset;
+}
+
+internal Asset *anim_load(const char *name) {
+    Asset *result = NULL;
+    u64 hash = djb2_hash(name);
+    int index = hash % g_assets->anim_table_size;
+    Asset_Bucket *hash_bucket = g_assets->anim_table + index;
+    for (Asset *asset = hash_bucket->first; asset; asset = asset->next) {
+        if (asset->hash == hash) {
+            result = asset;
+            break;
+        }
+    }
+    return result;
+}
+
+internal Asset *texture_load(const char *name) {
+    Asset *result = NULL;
+    u64 hash = djb2_hash(name);
+    int index = hash % g_assets->texture_table_size;
+    Asset_Bucket *hash_bucket = g_assets->texture_table + index;
+    for (Asset *asset = hash_bucket->first; asset; asset = asset->next) {
+        if (asset->hash == hash) {
+            result = asset;
+            break;
+        }
+    }
+    return result;
+}
+
 
 internal bool raycast(V2_F32 pos, V2_F32 dir, Raycast_Result *res) {
     int map_x = (int)pos.x;
@@ -282,7 +407,7 @@ internal bool raycast(V2_F32 pos, V2_F32 dir, Raycast_Result *res) {
     return hit;
 }
 
-void draw_map_cell(int x0, int y0, int cell_w, int cell_h, int tex) {
+internal void draw_map_cell(int x0, int y0, int cell_w, int cell_h, int tex) {
     Texture texture = game_state->textures[tex];
     int y1 = y0 + cell_h;
     int x1 = x0 + cell_w;
@@ -302,9 +427,15 @@ void draw_map_cell(int x0, int y0, int cell_w, int cell_h, int tex) {
     }
 }
 
-void draw_map(V2_F32 map_dim) {
+internal void draw_map(V2_F32 map_dim) {
     int cell_w = (int)(map_dim.x / MAP_WIDTH);
     int cell_h = (int)(map_dim.y / MAP_HEIGHT);
+
+    if (cell_w > cell_h) {
+        cell_w = cell_h;
+    } else if (cell_h > cell_w) {
+        cell_h = cell_w;
+    }
 
     if (cell_h < cell_w) {
         cell_w = cell_h;
@@ -322,12 +453,17 @@ void draw_map(V2_F32 map_dim) {
         }
     }
 
-    {
-        int x0 = (int)((game_state->pos.x - 0.5f) * cell_w);
-        int x1 = (int)((game_state->pos.x + 0.5f) * cell_w);
-        int y0 = (int)((game_state->pos.y - 0.5f) * cell_h);
-        int y1 = (int)((game_state->pos.y + 0.5f) * cell_h);
-        u32 color = 0x00FFFFFF;
+    for (int i = 0; i < game_state->entities.count; i++) {
+        Entity *e = game_state->entities[i];
+
+        f32 w = 0.75f * (f32)(cell_w / e->u_scale);
+        f32 h = 0.75f * (f32)(cell_h / e->v_scale);
+
+        int x0 = (int)((e->x - 0.5f) * cell_w);
+        int x1 = (int)(x0 + w);
+        int y0 = (int)((e->y - 0.5f) * cell_h);
+        int y1 = (int)(y0 + h);
+        u32 color = 0xFFFFFFFF;
 
         for (int y = y0; y < y1; y++) {
             for (int x = x0; x < x1; x++) {
@@ -335,6 +471,13 @@ void draw_map(V2_F32 map_dim) {
             }
         }
     }
+}
+
+internal void set_anim(Entity *e, Asset *asset) {
+    Assert(asset->kind == ASSET_ANIMATION);
+    e->anim = &asset->anim;
+    e->anim_t = 0;
+    e->anim_frame = 0;
 }
 
 internal void update_mob(Entity *e) {
@@ -345,6 +488,9 @@ internal void update_mob(Entity *e) {
     int player_x = (int)floorf(game_state->pos.x);
     int player_y = (int)floorf(game_state->pos.y);
     A_Star_Cell *goal = &game_state->a_star.cells[player_y * game_state->a_star.dim_x + player_x];
+
+    f64 new_x = e->x;
+    f64 new_y = e->y;
 
     if (a_star_search(start, goal)) {
         for (A_Star_Cell *cell = goal; cell; cell = cell->parent) {
@@ -358,16 +504,36 @@ internal void update_mob(Entity *e) {
         if (next) {
             f32 speed = 2.0f;
             V2_F32 dir = normalize(v2_f32((f32)(next->x + 0.5f - e->x), (f32)(next->y + 0.5f - e->y)));
-            f64 new_x = e->x + dir.x * speed * game_state->delta_t;
-            f64 new_y = e->y + dir.y * speed * game_state->delta_t;
-            e->x = new_x;
-            e->y = new_y;
+            new_x = e->x + dir.x * speed * game_state->delta_t;
+            new_y = e->y + dir.y * speed * game_state->delta_t;
         }
     }
 
-    //V2_F32 dir = normalize(v2_f32(game_state->pos.x - (f32)e->x, game_state->pos.y - (f32)e->y));
-    //e->x += dir.x * speed * game_state->delta_t;
-    //e->y += dir.y * speed * game_state->delta_t;
+    if (e->state == STATE_DEFAULT) {
+        e->state = STATE_IDLE;
+        set_anim(e, anim_load("ghost_idle"));
+    } else if (e->state == STATE_IDLE) {
+        if (e->x != e->new_x || e->y != e->new_y) {
+            e->state = STATE_RUN;
+            // set_anim(e, anim_load("ghost_run"));
+        }
+    } else if (e->state == STATE_RUN) {
+    } else if (e->state == STATE_DEAD) {
+        entity_destroy(e);
+    }
+
+    if (e->anim) {
+        e->anim_t += game_state->delta_t;
+        e->anim_frame = (int)(e->anim_t * (f32)e->anim->textures.count);
+        e->anim_frame %= e->anim->textures.count;
+        if (e->anim_t >= 1.0f) {
+            e->anim_t = 0;
+            e->anim_frame = 0;
+        }
+    }
+
+    e->x = new_x;
+    e->y = new_y;
 }
 
 internal void update_game_world(Game_State *state) {
@@ -375,6 +541,10 @@ internal void update_game_world(Game_State *state) {
 
     if (key_pressed(OS_KEY_ESCAPE)) {
         state->mode = GAME_MODE_PAUSE;
+    }
+
+    if (key_pressed(OS_KEY_M)) {
+        game_state->draw_map = !game_state->draw_map;
     }
 
     for (int i = 0; i < state->entities.count; i++) {
@@ -438,7 +608,7 @@ internal void update_game_world(Game_State *state) {
             right_dt += 1; 
         }
 
-        f32 speed = 4.0f;
+        f32 speed = 8.0f;
         V2_F32 direction = normalize_v2_f32(dir * forward_dt + right * right_dt);
         V2_F32 pos = state->pos;
         V2_F32 new_pos = pos + speed * direction * state->delta_t;
@@ -452,7 +622,7 @@ internal void update_game_world(Game_State *state) {
         if (wall != 0) {
             Door door = door_map[map_y][map_x];
             collides = true;
-            if (door.state == STATE_OPEN) {
+            if (door.state == DOOR_OPEN) {
                 collides = false;
             }
         }
@@ -469,10 +639,10 @@ internal void update_game_world(Game_State *state) {
         for (int x = 0; x < MAP_WIDTH; x++) {
             Door *door = &door_map[y][x];
             if (door->delta_t >= 1.0f) {
-                door->state = STATE_OPEN;
+                door->state = DOOR_OPEN;
             }
 
-            if (door->state == STATE_OPENING) {
+            if (door->state == DOOR_OPENING) {
                 door->delta_t += state->delta_t;
             }
         }
@@ -520,10 +690,10 @@ internal void update_game_world(Game_State *state) {
             // door num
             if (wall == 14 && ray.dist < 1.0f) {
                 Door *door = &door_map[ray.dest_y][ray.dest_x];
-                if (door->state == STATE_CLOSE) {
-                    door->state = STATE_OPENING;
-                } else if (door->state == STATE_OPEN) {
-                    door->state = STATE_CLOSE;
+                if (door->state == DOOR_CLOSE) {
+                    door->state = DOOR_OPENING;
+                } else if (door->state == DOOR_OPEN) {
+                    door->state = DOOR_CLOSE;
                     door->delta_t = 0.0f;
                 }
             }
@@ -636,9 +806,9 @@ internal void update_game_world(Game_State *state) {
                 //@Note Check open doors, don't render part of door that is being opened
                 if (wall == 14) {
                     Door door = door_map[map_y][map_x];
-                    if (door.state == STATE_OPEN) {
+                    if (door.state == DOOR_OPEN) {
                         hit = 0;
-                    } else if (door.state == STATE_OPENING) {
+                    } else if (door.state == DOOR_OPENING) {
                         f64 perp_wall_dist = 0;
                         if (side == 0) perp_wall_dist = side_dx - dx;
                         if (side == 1) perp_wall_dist = side_dy - dy;
@@ -767,17 +937,30 @@ internal void update_game_world(Game_State *state) {
         if (x1 >= w) x1 = (int)w - 1;
 
         for (int x = x0; x < x1; x++) {
-            int tex_x = (int)(256 * (x - (-entity_w / 2 + entity_screen_x)) * TEX_WIDTH / entity_w / 256); if (xform_y > 0 && x > 0 && x < w && xform_y < z_buffer[x]) {
+            int tex_x = (int)(256 * (x - (-entity_w / 2 + entity_screen_x)) * TEX_WIDTH / entity_w / 256);
+            if (xform_y > 0 && x > 0 && x < w && xform_y < z_buffer[x]) {
                 for (int y = y0; y < y1; y++) {
                     int d = (y - adjust_y) * 256 - (int)h * 128 + entity_h * 128;
                     int tex_y = ((d * TEX_HEIGHT) / entity_h) / 256;
 
-                    Texture texture = state->textures[e->tex];
+                    Texture texture;
+                    if (e->anim) {
+                        texture = e->anim->textures[e->anim_frame];
+                    } else {
+                        texture = state->textures[e->tex];
+                    }
                     u32 color = ((u32 *)texture.bitmap)[tex_y * TEX_WIDTH + tex_x];
-                    if ((color & 0x00FFFFFF) != 0) fill_pixel(&g_back_buffer, x, y, color);
+
+                    if ((color & 0xFF000000) != 0) {
+                        fill_pixel(&g_back_buffer, x, y, color);
+                    }
                 }
             }
         }
+    }
+
+    if (state->draw_map) {
+        draw_map(v2_f32(SCREEN_WIDTH, SCREEN_HEIGHT));
     }
 }
 
@@ -794,25 +977,39 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         game_state->plane_x = 0;
         game_state->plane_y = 0.66;
 
-        load_texture("data/wolftex/eagle.png");
-        load_texture("data/wolftex/redbrick.png");
-        load_texture("data/wolftex/purplestone.png");
-        load_texture("data/wolftex/greystone.png");
-        load_texture("data/wolftex/bluestone.png");
-        load_texture("data/wolftex/mossy.png");
-        load_texture("data/wolftex/wood.png");
-        load_texture("data/wolftex/colorstone.png");
-        load_texture("data/wolftex/barrel.png");
-        load_texture("data/wolftex/pillar.png");
-        load_texture("data/wolftex/greenlight.png");
-        load_texture("data/mob.png");
-        load_texture("data/ball.png");
-        load_texture("data/door.png");
+        g_assets = push_array(permanent_arena, Assets, 1);
+        g_assets->anim_table_size = 128;
+        g_assets->anim_table = push_array(permanent_arena, Asset_Bucket, g_assets->anim_table_size);
+        g_assets->texture_table_size = 128;
+        g_assets->texture_table = push_array(permanent_arena, Asset_Bucket, g_assets->texture_table_size);
+
+        os_chdir(str8_lit("data"));
+
+        asset_load_texture("wolftex/eagle.png");
+        asset_load_texture("wolftex/redbrick.png");
+        asset_load_texture("wolftex/purplestone.png");
+        asset_load_texture("wolftex/greystone.png");
+        asset_load_texture("wolftex/bluestone.png");
+        asset_load_texture("wolftex/mossy.png");
+        asset_load_texture("wolftex/wood.png");
+        asset_load_texture("wolftex/colorstone.png");
+        asset_load_texture("wolftex/barrel.png");
+        asset_load_texture("wolftex/pillar.png");
+        asset_load_texture("wolftex/greenlight.png");
+        asset_load_texture("mob.png");
+        asset_load_texture("ball.png");
+        asset_load_texture("door.png");
+
+        asset_load_animation(str8_lit("ghost_idle"));
+
+        Arena *temp = make_arena(get_malloc_allocator());
+        default_font = load_font(temp, str8_lit("fonts/consolas.ttf"), 20);
+
+        os_chdir(str8_lit(".."));
+
 
         update_screen_buffer(&g_back_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-        Arena *temp = make_arena(get_malloc_allocator());
-        default_font = load_font(temp, str8_lit("data/fonts/consolas.ttf"), 20);
 
         {
             make_entity(E_OBJ, 20.5, 11.5, 10, 1, 1, 0); //green light in front of playerstart
@@ -840,7 +1037,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
             make_entity(E_OBJ, 18.5, 10.5,  9, 1, 1, 0);
             make_entity(E_OBJ, 18.5, 11.5,  9, 1, 1, 0);
             make_entity(E_OBJ, 18.5, 12.5,  9, 1, 1, 0);
-            make_entity(E_MOB, 17.0, 3.0,  11, 1, 1, 0);
+            make_entity(E_MOB, 17.0, 3.0,  11, 1, 1, 64);
         }
 
         A_Star *a_star = &game_state->a_star;
@@ -868,8 +1065,6 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         case GAME_MODE_MENU:
             break;
         case GAME_MODE_PAUSE:
-            clear_buffer(&g_back_buffer, 0, 0, 0, 1);
-            draw_map(window_dim);
             if (key_pressed(OS_KEY_ESCAPE)) {
                 game_state->mode = GAME_MODE_WORLD;
             }
