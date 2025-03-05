@@ -111,7 +111,7 @@ int main() {
 
         Rect draw_region = make_rect(0.f, 0.f, window_dim.x, window_dim.y);
         r_d3d11_state->draw_region = draw_region;
-
+        
         update_and_render(&win32_events, window_handle, dt / 1000.f);
 
         win32_events.first = nullptr;

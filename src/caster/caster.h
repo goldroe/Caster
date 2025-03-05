@@ -156,6 +156,9 @@ struct Game_State {
     A_Star a_star;
 
     bool draw_map;
+
+    f32 gun_anim_t;
+    int gun_frame;
 };
 
 #endif // CASTER_H

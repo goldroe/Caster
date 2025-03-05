@@ -280,7 +280,7 @@ internal Asset *asset_load_animation(String8 name) {
     ondemand::object root_object = document.get_object();
 
     auto frames = root_object.find_field("frames").get_object();
-
+    
     ondemand::object meta_object = root_object.find_field("meta");
     std::string_view image_name = meta_object.find_field("image").get_string();
     char *file_name = push_array(temporary_arena, char, image_name.length() + 1);
@@ -713,7 +713,6 @@ internal void update_game_world(Game_State *state) {
     RGBA fog_color = {0xFF000000};
 
     f32 spot_radius = SCREEN_HEIGHT / 2.0f;
-    RGBA spot_color = {0xFFAAAAAA};
 
     //@Note Floor raycasting
     for (int y = (int)h / 2 + 1; y < h; y++) {
@@ -746,7 +745,6 @@ internal void update_game_world(Game_State *state) {
             Texture *floor_texture = &state->textures[3];
             Texture *ceiling_texture = &state->textures[6];
 
-
             RGBA color;
             color.v = ((u32 *)floor_texture->bitmap)[tex_y * TEX_WIDTH + tex_x];
 
@@ -763,7 +761,6 @@ internal void update_game_world(Game_State *state) {
             color.r = (u8)(fog_weight * fog_color.r + (1.0f - fog_weight) * color.r);
             color.g = (u8)(fog_weight * fog_color.g + (1.0f - fog_weight) * color.g);
             color.b = (u8)(fog_weight * fog_color.b + (1.0f - fog_weight) * color.b);
-
 
             f32 spot_dist = length(v2_f32(x - SCREEN_WIDTH/2.0f, y - SCREEN_HEIGHT/2.0f));
             if (spot_dist < spot_radius) {
@@ -1004,6 +1001,31 @@ internal void update_game_world(Game_State *state) {
         }
     }
 
+    //@Note Draw gun
+    {
+        Anim *gun_anim = &anim_load("gun_fire")->anim;
+        Texture texture = gun_anim->textures[state->gun_frame];
+        for (int y = 0; y < h; y++) {
+            int tex_y = y;
+            for (int x = 0; x < w; x++) {
+                int tex_x = x;
+                RGBA color;
+                color.v = ((u32 *)texture.bitmap)[tex_y * texture.width + tex_x];
+                if (color.v & 0xFF000000) {
+                    fill_pixel(&g_back_buffer, x, y, color.v);
+                }
+            }
+        }
+
+        state->gun_frame = (int)(state->gun_anim_t * gun_anim->textures.count);
+        state->gun_frame %= gun_anim->textures.count;
+        state->gun_anim_t += state->delta_t;
+        if (state->gun_anim_t >= 1.0f) {
+            state->gun_anim_t = 0.0f;
+            state->gun_frame = 0;
+        }
+    }
+
     if (state->draw_map) {
         draw_map(v2_f32(SCREEN_WIDTH, SCREEN_HEIGHT));
     }
@@ -1016,7 +1038,6 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
 
         game_state = new Game_State();
         game_state->mode = GAME_MODE_WORLD;
-        //game_state->pos = v2_f32(22.0f, 1.5f);
         game_state->pos = v2_f32(5.0f, 11.0f);
         game_state->dir = v2_f32(-1.0f, 0.0f);
         game_state->plane_x = 0;
@@ -1046,6 +1067,7 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
         asset_load_texture("door.png");
 
         asset_load_animation(str8_lit("ghost_idle"));
+        asset_load_animation(str8_lit("gun_fire"));
 
         Arena *temp = make_arena(get_malloc_allocator());
         default_font = load_font(temp, str8_lit("fonts/consolas.ttf"), 20);
@@ -1054,7 +1076,6 @@ internal void update_and_render(OS_Event_List *events, OS_Handle window_handle, 
 
 
         update_screen_buffer(&g_back_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
-
 
         {
             make_entity(E_OBJ, 20.5, 11.5, 10, 1, 1, 0); //green light in front of playerstart
