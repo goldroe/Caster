@@ -5,7 +5,8 @@
 Raycaster written in C++\
 Defaults to 640x480\
 Supports Windows\
-##
+
+
 Draws textured walls, floors, and entities\
 Supports animation for entities\
 Fog\
