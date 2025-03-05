@@ -1,6 +1,6 @@
 # Caster
 
-![Screenshot](https://github.com/goldroe/Caster/screenshot.png?raw=true)
+![Screenshot](https://github.com/goldroe/Caster/blob/master/screenshot.png?raw=true)
 
 Raycaster written in C++
 Defaults to 640x480
