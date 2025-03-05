@@ -709,6 +709,12 @@ internal void update_game_world(Game_State *state) {
 
     V2_F32 dir = state->dir;
 
+    f64 fog_ratio = 1 / 8.0;
+    RGBA fog_color = {0xFF000000};
+
+    f32 spot_radius = SCREEN_HEIGHT / 2.0f;
+    RGBA spot_color = {0xFFAAAAAA};
+
     //@Note Floor raycasting
     for (int y = (int)h / 2 + 1; y < h; y++) {
         f64 ray_x0 = dir.x - plane_x;
@@ -740,11 +746,33 @@ internal void update_game_world(Game_State *state) {
             Texture *floor_texture = &state->textures[3];
             Texture *ceiling_texture = &state->textures[6];
 
+
             RGBA color;
             color.v = ((u32 *)floor_texture->bitmap)[tex_y * TEX_WIDTH + tex_x];
+
+            f64 fog_weight = row_distance * fog_ratio;
+            fog_weight = ClampTop(fog_weight, 1.0);
+
+            color.r = (u8)(fog_weight * fog_color.r + (1.0f - fog_weight) * color.r);
+            color.g = (u8)(fog_weight * fog_color.g + (1.0f - fog_weight) * color.g);
+            color.b = (u8)(fog_weight * fog_color.b + (1.0f - fog_weight) * color.b);
+
             fill_pixel(&g_back_buffer, x, y, color.v);
 
             color.v = ((u32 *)ceiling_texture->bitmap)[tex_y * TEX_WIDTH + tex_x];
+            color.r = (u8)(fog_weight * fog_color.r + (1.0f - fog_weight) * color.r);
+            color.g = (u8)(fog_weight * fog_color.g + (1.0f - fog_weight) * color.g);
+            color.b = (u8)(fog_weight * fog_color.b + (1.0f - fog_weight) * color.b);
+
+
+            f32 spot_dist = length(v2_f32(x - SCREEN_WIDTH/2.0f, y - SCREEN_HEIGHT/2.0f));
+            if (spot_dist < spot_radius) {
+                f32 r = spot_dist / spot_radius;
+                color.r = u8(255 * ClampTop(color.r / 255.0f + ((1.0f - r) * color.r/255.0f), 1.0f));
+                color.g = u8(255 * ClampTop(color.g / 255.0f + ((1.0f - r) * color.g/255.0f), 1.0f));
+                color.b = u8(255 * ClampTop(color.b / 255.0f + ((1.0f - r) * color.b/255.0f), 1.0f));
+            }
+
             fill_pixel(&g_back_buffer, x, (int)h - y - 1, color.v);
         }
     }
@@ -862,12 +890,20 @@ internal void update_game_world(Game_State *state) {
             RGBA color;
             color.v = ((u32 *)texture->bitmap)[tex_y * TEX_WIDTH + tex_x];
 
-            // //@Note Darken side
-            if (side == 1) {
-                color.r /= 2;
-                color.g /= 2;
-                color.b /= 2;
+            f32 spot_dist = length(v2_f32(x - SCREEN_WIDTH/2.0f, y - SCREEN_HEIGHT/2.0f));
+            if (spot_dist < spot_radius) {
+                f32 r = spot_dist / spot_radius;
+                color.r = u8(255 * ClampTop(color.r / 255.0f + ((1.0f - r) * color.r/255.0f), 1.0f));
+                color.g = u8(255 * ClampTop(color.g / 255.0f + ((1.0f - r) * color.g/255.0f), 1.0f));
+                color.b = u8(255 * ClampTop(color.b / 255.0f + ((1.0f - r) * color.b/255.0f), 1.0f));
             }
+
+            //@Note Fog
+            f64 fog_weight = perp_wall_dist * fog_ratio;
+            fog_weight = ClampTop(fog_weight, 1.0);
+            color.r = (u8)(fog_weight * fog_color.r + (1.0f - fog_weight) * color.r);
+            color.g = (u8)(fog_weight * fog_color.g + (1.0f - fog_weight) * color.g);
+            color.b = (u8)(fog_weight * fog_color.b + (1.0f - fog_weight) * color.b);
 
             fill_pixel(&g_back_buffer, x, y, color.v);
 
@@ -949,10 +985,19 @@ internal void update_game_world(Game_State *state) {
                     } else {
                         texture = state->textures[e->tex];
                     }
-                    u32 color = ((u32 *)texture.bitmap)[tex_y * TEX_WIDTH + tex_x];
 
-                    if ((color & 0xFF000000) != 0) {
-                        fill_pixel(&g_back_buffer, x, y, color);
+                    RGBA color;
+                    color.v = ((u32 *)texture.bitmap)[tex_y * TEX_WIDTH + tex_x];
+                    if ((color.v & 0xFF000000) != 0) {
+                        f32 dist = length(v2_f32((f32)e->x, (f32)e->y) - state->pos);
+                        f64 fog_weight = dist * fog_ratio;
+                        fog_weight = ClampTop(fog_weight, 1.0);
+
+                        color.r = (u8)(fog_weight * fog_color.r + (1.0f - fog_weight) * color.r);
+                        color.g = (u8)(fog_weight * fog_color.g + (1.0f - fog_weight) * color.g);
+                        color.b = (u8)(fog_weight * fog_color.b + (1.0f - fog_weight) * color.b);
+
+                        fill_pixel(&g_back_buffer, x, y, color.v);
                     }
                 }
             }
