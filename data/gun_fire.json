@@ -1,0 +1,35 @@
+{ "frames": {
+   "gun_fire 0.ase": {
+    "frame": { "x": 0, "y": 0, "w": 640, "h": 480 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 640, "h": 480 },
+    "sourceSize": { "w": 640, "h": 480 },
+    "duration": 100
+   },
+   "gun_fire 1.ase": {
+    "frame": { "x": 640, "y": 0, "w": 640, "h": 480 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 640, "h": 480 },
+    "sourceSize": { "w": 640, "h": 480 },
+    "duration": 100
+   },
+   "gun_fire 2.ase": {
+    "frame": { "x": 1280, "y": 0, "w": 640, "h": 480 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 640, "h": 480 },
+    "sourceSize": { "w": 640, "h": 480 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://github.com/LibreSprite/LibreSprite/",
+  "version": "1.2-973d0e3d-SDL",
+  "image": "C:\\Dev\\Caster\\data\\gun_fire.png",
+  "format": "RGBA8888",
+  "size": { "w": 1920, "h": 480 },
+  "scale": "1"
+ }
+}
